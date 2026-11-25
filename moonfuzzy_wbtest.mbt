@@ -476,3 +476,31 @@ test "Sugeno contribution trace explains weighted output terms" {
     }
   }
 }
+
+///|
+test "linguistic classification reports tied labels and ambiguity" {
+  let low = match triangle("low", 0.0, 0.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("low")
+  }
+  let high = match triangle("high", 0.0, 10.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("high")
+  }
+  let variable = match variable("temperature", 0.0, 10.0, [low, high]) {
+    Ok(value) => value
+    Err(_) => abort("variable")
+  }
+  match variable.classify(5.0) {
+    Err(_) => abort("classification")
+    Ok(result) => {
+      assert_eq(result.labels, ["low", "high"])
+      assert_eq(result.maximum_grade, 0.5)
+      assert_eq(result.ambiguity, 1.0)
+    }
+  }
+  match variable.classify(0.0) {
+    Err(_) => abort("classification")
+    Ok(result) => assert_eq(result.ambiguity, 0.0)
+  }
+}

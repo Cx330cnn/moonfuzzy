@@ -36,6 +36,8 @@ pub enum FuzzyError {
   DuplicateSet(String, String)
   MissingOutput(String)
   NoMembershipArea
+  NoLinguisticLabels(String)
+  NoLabelMatches(String)
 }
 
 ///|
@@ -1294,4 +1296,55 @@ pub fn System::sugeno_contributions(
     index = index + 1
   }
   Ok(contributions)
+}
+
+///|
+/// A best-label decision with a normalized ambiguity score.
+pub struct Classification {
+  labels : Array[String]
+  maximum_grade : Double
+  ambiguity : Double
+}
+
+///|
+/// Select all strongest labels and estimate overlap ambiguity with normalized Gini.
+/// Ambiguity is zero for one dominant label and approaches one for evenly split grades.
+pub fn LinguisticVariable::classify(
+  self : LinguisticVariable,
+  value : Double,
+) -> Result[Classification, FuzzyError] {
+  if self.sets.length() == 0 {
+    return Err(NoLinguisticLabels(self.name))
+  }
+  let grades = self.fuzzify(value)
+  let mut maximum = 0.0
+  let mut sum = 0.0
+  for grade in grades {
+    if grade > maximum {
+      maximum = grade
+    }
+    sum = sum + grade
+  }
+  if sum == 0.0 {
+    return Err(NoLabelMatches(self.name))
+  }
+  let labels = Array()
+  let mut squared_sum = 0.0
+  let mut index = 0
+  while index < grades.length() {
+    let probability = grades[index] / sum
+    squared_sum = squared_sum + probability * probability
+    if grades[index] == maximum {
+      labels.push(self.sets[index].name)
+    }
+    index = index + 1
+  }
+  let count = grades.length().to_double()
+  let maximum_gini = 1.0 - 1.0 / count
+  let ambiguity = if count <= 1.0 {
+    0.0
+  } else {
+    (1.0 - squared_sum) / maximum_gini
+  }
+  Ok({ labels, maximum_grade: maximum, ambiguity, })
 }

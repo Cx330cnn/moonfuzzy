@@ -87,6 +87,12 @@ pub enum Antecedent {
   Not(Antecedent)
 }
 
+pub struct Classification {
+  labels : Array[String]
+  maximum_grade : Double
+  ambiguity : Double
+}
+
 pub enum Connective {
   Minimum
   Product
@@ -137,6 +143,8 @@ pub enum FuzzyError {
   DuplicateSet(String, String)
   MissingOutput(String)
   NoMembershipArea
+  NoLinguisticLabels(String)
+  NoLabelMatches(String)
 }
 
 pub struct FuzzySet {
@@ -156,6 +164,7 @@ pub struct LinguisticVariable {
   maximum : Double
   sets : Array[FuzzySet]
 }
+pub fn LinguisticVariable::classify(Self, Double) -> Result[Classification, FuzzyError]
 pub fn LinguisticVariable::fuzzify(Self, Double) -> Array[Double]
 pub fn LinguisticVariable::maximizers(Self, Double) -> Array[String]
 
