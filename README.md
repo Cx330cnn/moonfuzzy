@@ -17,7 +17,7 @@ MoonFuzzy 是面向 MoonBit 的模糊推理库原型：把连续数值、语言�
 - 三角形、梯形、单点、Gaussian、Sigmoid、左肩形和右肩形隶属函数；形状参数进行基本校验。
 - 有界语言变量、批量 fuzzify 与并列最大标签查询。
 - `AND`、`OR`、`NOT` 前件树；minimum/product/max/probabilistic-sum 连接策略。
-- 加权规则；按规则索引返回原始与加权激活值，便于调试解释。
+- 加权规则；建模时检查变量/集合重名、规则前件/后件引用与 Sugeno 系数维度；按规则索引返回原始与加权激活值，便于调试解释。
 - Mamdani：采样输出域、最小蕴涵/最大聚合、离散质心解模糊。
 - Sugeno：零阶常数与一阶线性后件的加权平均。
 - 对外部采样曲线提供梯形积分意义下的质心、面积平分近似和最大隶属度均值解模糊函数。
@@ -36,7 +36,7 @@ moon test --target wasm --deny-warn
 moon run --target wasm cmd/main
 ```
 
-示例构造一个温度到风扇命令的 Sugeno 控制器；输入 `5.0` 时，两条规则等强激活，输出 `50`。示例源代码位于 [`cmd/main/main.mbt`](cmd/main/main.mbt)。当前测试集包括隶属函数边界/方向、参数错误、Mamdani 对称质心、Sugeno 混合后件、规则激活诊断及采样解模糊边界。
+示例构造一个温度到风扇命令的 Sugeno 控制器；输入 `5.0` 时，两条规则等强激活，输出 `50`。示例源代码位于 [`cmd/main/main.mbt`](cmd/main/main.mbt)。当前 11 项白盒测试覆盖隶属函数边界/方向、参数错误、模型引用完整性、Mamdani 对称质心、Sugeno 混合后件、规则激活诊断及采样解模糊边界。
 
 ## 下游接入（尚未发布）
 

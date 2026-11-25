@@ -102,6 +102,9 @@ pub enum FuzzyError {
   EmptyRuleBase
   InvalidResolution
   InvalidWeight
+  DuplicateVariable(String)
+  DuplicateSet(String, String)
+  MissingOutput(String)
 }
 
 pub struct FuzzySet {

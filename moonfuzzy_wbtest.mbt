@@ -224,3 +224,92 @@ test "sample defuzzifiers distinguish centroid bisector and maximum" {
     defuzzify([0.0, 1.0], [0.0, 1.1], SampledCentroid) is Err(GradeOutOfRange),
   )
 }
+
+///|
+test "system construction validates names and every rule reference" {
+  let set = match triangle("active", 0.0, 1.0, 2.0) {
+    Ok(value) => value
+    Err(_) => abort("set")
+  }
+  let input = match variable("x", 0.0, 2.0, [set]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("y", 0.0, 1.0, []) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let bad_input = match
+    rule(is_set("missing", "active"), sugeno_constant("y", 1.0), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  assert_true(
+    system([input], [output], [bad_input], min_max_connective())
+    is Err(MissingInput("missing")),
+  )
+  let duplicate_variable = match variable("x", 0.0, 2.0, [set]) {
+    Ok(value) => value
+    Err(_) => abort("duplicate variable")
+  }
+  let valid = match
+    rule(is_set("x", "active"), sugeno_constant("y", 1.0), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("valid rule")
+  }
+  assert_true(
+    system([input, duplicate_variable], [output], [valid], min_max_connective())
+    is Err(DuplicateVariable("x")),
+  )
+}
+
+///|
+test "system construction rejects duplicate labels and bad Sugeno dimensions" {
+  let first = match singleton("same", 1.0) {
+    Ok(value) => value
+    Err(_) => abort("first")
+  }
+  let second = match singleton("same", 2.0) {
+    Ok(value) => value
+    Err(_) => abort("second")
+  }
+  let input = match variable("x", 0.0, 2.0, [first, second]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("y", 0.0, 1.0, []) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let rule_with_bad_coefficients = match
+    rule(is_set("x", "same"), sugeno_linear("y", 0.0, []), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  assert_true(
+    system(
+      [input],
+      [output],
+      [rule_with_bad_coefficients],
+      min_max_connective(),
+    )
+    is Err(DuplicateSet("x", "same")),
+  )
+  let distinct = match singleton("only", 1.0) {
+    Ok(value) => value
+    Err(_) => abort("distinct")
+  }
+  let valid_input = match variable("x", 0.0, 2.0, [distinct]) {
+    Ok(value) => value
+    Err(_) => abort("valid input")
+  }
+  let bad_dimensions = match
+    rule(is_set("x", "only"), sugeno_linear("y", 0.0, []), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("bad dimensions rule")
+  }
+  assert_true(
+    system([valid_input], [output], [bad_dimensions], min_max_connective())
+    is Err(CoefficientCount("y")),
+  )
+}

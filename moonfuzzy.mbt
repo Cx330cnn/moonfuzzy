@@ -32,6 +32,9 @@ pub enum FuzzyError {
   EmptyRuleBase
   InvalidResolution
   InvalidWeight
+  DuplicateVariable(String)
+  DuplicateSet(String, String)
+  MissingOutput(String)
 }
 
 ///|
@@ -254,6 +257,18 @@ pub fn system(
 ) -> Result[System, FuzzyError] {
   if rules.length() == 0 {
     return Err(EmptyRuleBase)
+  }
+  match validate_variable_names(inputs) {
+    Err(error) => return Err(error)
+    Ok(_) => ()
+  }
+  match validate_variable_names(outputs) {
+    Err(error) => return Err(error)
+    Ok(_) => ()
+  }
+  match validate_rules(inputs, outputs, rules) {
+    Err(error) => return Err(error)
+    Ok(_) => ()
   }
   Ok({ inputs, outputs, rules, connective, })
 }
@@ -821,4 +836,103 @@ pub fn defuzzify_mean_of_maximum(
   grades : Array[Double],
 ) -> Result[Double, SampleError] {
   defuzzify(axis, grades, MeanOfMaximum)
+}
+
+///|
+/// Check that all names within a group of variables are unique.
+fn validate_variable_names(
+  variables : Array[LinguisticVariable],
+) -> Result[Unit, FuzzyError] {
+  let mut i = 0
+  while i < variables.length() {
+    let mut j = i + 1
+    while j < variables.length() {
+      if variables[i].name == variables[j].name {
+        return Err(DuplicateVariable(variables[i].name))
+      }
+      j = j + 1
+    }
+    let mut a = 0
+    while a < variables[i].sets.length() {
+      let mut b = a + 1
+      while b < variables[i].sets.length() {
+        if variables[i].sets[a].name == variables[i].sets[b].name {
+          return Err(DuplicateSet(variables[i].name, variables[i].sets[a].name))
+        }
+        b = b + 1
+      }
+      a = a + 1
+    }
+    i = i + 1
+  }
+  Ok(())
+}
+
+///|
+/// Validate every named proposition before evaluation begins.
+fn validate_proposition(
+  node : Antecedent,
+  inputs : Array[LinguisticVariable],
+) -> Result[Unit, FuzzyError] {
+  match node {
+    Is(variable_name, set_name) =>
+      match find_variable(inputs, variable_name) {
+        None => Err(MissingInput(variable_name))
+        Some(index) =>
+          match find_set(inputs[index], set_name) {
+            None => Err(MissingSet(variable_name, set_name))
+            Some(_) => Ok(())
+          }
+      }
+    Not(child) => validate_proposition(child, inputs)
+    And(left, right) =>
+      match validate_proposition(left, inputs) {
+        Err(error) => Err(error)
+        Ok(_) => validate_proposition(right, inputs)
+      }
+    Or(left, right) =>
+      match validate_proposition(left, inputs) {
+        Err(error) => Err(error)
+        Ok(_) => validate_proposition(right, inputs)
+      }
+  }
+}
+
+///|
+/// Validate rule references and consequent dimensions for a proposed system.
+fn validate_rules(
+  inputs : Array[LinguisticVariable],
+  outputs : Array[LinguisticVariable],
+  rules : Array[Rule],
+) -> Result[Unit, FuzzyError] {
+  for current_rule in rules {
+    match validate_proposition(current_rule.antecedent, inputs) {
+      Err(error) => return Err(error)
+      Ok(_) => ()
+    }
+    match current_rule.consequent {
+      Mamdani(output_name, set_name) =>
+        match find_variable(outputs, output_name) {
+          None => return Err(MissingOutput(output_name))
+          Some(index) =>
+            match find_set(outputs[index], set_name) {
+              None => return Err(MissingConsequent(output_name, set_name))
+              Some(_) => ()
+            }
+        }
+      SugenoConstant(output_name, _) =>
+        if find_variable(outputs, output_name) is None {
+          return Err(MissingOutput(output_name))
+        }
+      SugenoLinear(output_name, _, coefficients) => {
+        if find_variable(outputs, output_name) is None {
+          return Err(MissingOutput(output_name))
+        }
+        if coefficients.length() != inputs.length() {
+          return Err(CoefficientCount(output_name))
+        }
+      }
+    }
+  }
+  Ok(())
 }
