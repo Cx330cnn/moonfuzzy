@@ -394,3 +394,49 @@ test "configured Mamdani inference selects product and probabilistic operators" 
   )
   assert_true(result is Ok([5.0]))
 }
+
+///|
+test "rule coverage identifies uncovered input samples" {
+  let left = match triangle("left", 0.0, 0.0, 4.0) {
+    Ok(value) => value
+    Err(_) => abort("left")
+  }
+  let right = match triangle("right", 6.0, 10.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("right")
+  }
+  let input = match variable("x", 0.0, 10.0, [left, right]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("y", 0.0, 1.0, []) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let left_rule = match
+    rule(is_set("x", "left"), sugeno_constant("y", 0.0), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("left rule")
+  }
+  let right_rule = match
+    rule(is_set("x", "right"), sugeno_constant("y", 1.0), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("right rule")
+  }
+  let model = match
+    system([input], [output], [left_rule, right_rule], min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("system")
+  }
+  match model.coverage([[1.0], [5.0], [9.0]], 0.2) {
+    Err(_) => abort("coverage")
+    Ok(report) => {
+      assert_eq(report.sample_count, 3)
+      assert_eq(report.covered_samples, 2)
+      assert_eq(report.uncovered_indices, [1])
+      assert_eq(report.weakest_strength, 0.0)
+    }
+  }
+  assert_true(model.coverage([], 0.2) is Err(EmptySamples))
+  assert_true(model.coverage([[1.0]], 2.0) is Err(InvalidCoverageThreshold))
+}

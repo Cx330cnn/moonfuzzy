@@ -1149,3 +1149,70 @@ pub fn maximum_aggregation() -> Aggregation {
 pub fn probabilistic_aggregation() -> Aggregation {
   ProbabilisticAggregation
 }
+
+///|
+/// Summary of empirical rule-base coverage over caller-supplied samples.
+pub struct CoverageReport {
+  sample_count : Int32
+  covered_samples : Int32
+  uncovered_indices : Array[Int32]
+  weakest_strength : Double
+  average_strength : Double
+}
+
+///|
+/// Errors produced when a coverage request is not meaningful.
+pub enum CoverageError {
+  EmptySamples
+  InvalidCoverageThreshold
+  CoverageEvaluation(FuzzyError)
+}
+
+///|
+/// Measure how often at least one rule reaches the requested weighted strength.
+pub fn System::coverage(
+  self : System,
+  samples : Array[Array[Double]],
+  threshold : Double,
+) -> Result[CoverageReport, CoverageError] {
+  if samples.length() == 0 {
+    return Err(EmptySamples)
+  }
+  if threshold < 0.0 || threshold > 1.0 {
+    return Err(InvalidCoverageThreshold)
+  }
+  let uncovered = Array()
+  let mut covered = 0
+  let mut weakest = 1.0
+  let mut total = 0.0
+  let mut sample_index = 0
+  while sample_index < samples.length() {
+    let activations = match self.activations(samples[sample_index]) {
+      Err(error) => return Err(CoverageEvaluation(error))
+      Ok(items) => items
+    }
+    let mut strongest = 0.0
+    for activation in activations {
+      if activation.weighted_grade > strongest {
+        strongest = activation.weighted_grade
+      }
+    }
+    total = total + strongest
+    if strongest >= threshold {
+      covered = covered + 1
+    } else {
+      uncovered.push(sample_index)
+    }
+    if strongest < weakest {
+      weakest = strongest
+    }
+    sample_index = sample_index + 1
+  }
+  Ok({
+    sample_count: samples.length(),
+    covered_samples: covered,
+    uncovered_indices: uncovered,
+    weakest_strength: weakest,
+    average_strength: total / samples.length().to_double(),
+  })
+}

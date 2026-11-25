@@ -100,6 +100,20 @@ pub enum Consequent {
   SugenoLinear(String, Double, Array[Double])
 }
 
+pub enum CoverageError {
+  EmptySamples
+  InvalidCoverageThreshold
+  CoverageEvaluation(FuzzyError)
+}
+
+pub struct CoverageReport {
+  sample_count : Int32
+  covered_samples : Int32
+  uncovered_indices : Array[Int32]
+  weakest_strength : Double
+  average_strength : Double
+}
+
 pub enum Defuzzification {
   SampledCentroid
   Bisector
@@ -189,6 +203,7 @@ pub struct System {
   connective : Connective
 }
 pub fn System::activations(Self, Array[Double]) -> Result[Array[RuleActivation], FuzzyError]
+pub fn System::coverage(Self, Array[Array[Double]], Double) -> Result[CoverageReport, CoverageError]
 pub fn System::infer_mamdani(Self, Array[Double], Int32) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_mamdani_with(Self, Array[Double], Int32, Implication, Aggregation, Defuzzification) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_sugeno(Self, Array[Double]) -> Result[Array[Double], FuzzyError]
