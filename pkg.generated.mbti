@@ -112,6 +112,12 @@ pub enum CoverageError {
   CoverageEvaluation(FuzzyError)
 }
 
+pub struct CoverageGap {
+  start : Double
+  end : Double
+  sample_count : Int32
+}
+
 pub struct CoverageReport {
   sample_count : Int32
   covered_samples : Int32
@@ -167,6 +173,7 @@ pub struct LinguisticVariable {
 pub fn LinguisticVariable::classify(Self, Double) -> Result[Classification, FuzzyError]
 pub fn LinguisticVariable::fuzzify(Self, Double) -> Array[Double]
 pub fn LinguisticVariable::maximizers(Self, Double) -> Array[String]
+pub fn LinguisticVariable::partition_gaps(Self, Int32, Double) -> Result[Array[CoverageGap], FuzzyError]
 
 pub enum MembershipShape {
   Triangle(Double, Double, Double)

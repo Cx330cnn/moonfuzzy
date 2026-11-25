@@ -504,3 +504,30 @@ test "linguistic classification reports tied labels and ambiguity" {
     Ok(result) => assert_eq(result.ambiguity, 0.0)
   }
 }
+
+///|
+test "partition diagnostics locate low-membership gaps" {
+  let low = match triangle("low", 0.0, 0.0, 2.0) {
+    Ok(value) => value
+    Err(_) => abort("low")
+  }
+  let high = match triangle("high", 8.0, 10.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("high")
+  }
+  let variable = match variable("x", 0.0, 10.0, [low, high]) {
+    Ok(value) => value
+    Err(_) => abort("variable")
+  }
+  match variable.partition_gaps(11, 0.1) {
+    Err(_) => abort("gap scan")
+    Ok(gaps) => {
+      assert_eq(gaps.length(), 1)
+      assert_eq(gaps[0].start, 2.0)
+      assert_eq(gaps[0].end, 8.0)
+      assert_eq(gaps[0].sample_count, 7)
+    }
+  }
+  assert_true(variable.partition_gaps(1, 0.1) is Err(InvalidResolution))
+  assert_true(variable.partition_gaps(11, 0.0) is Err(InvalidShape))
+}

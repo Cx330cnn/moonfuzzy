@@ -1348,3 +1348,59 @@ pub fn LinguisticVariable::classify(
   }
   Ok({ labels, maximum_grade: maximum, ambiguity, })
 }
+
+///|
+/// A sampled interval where no label reaches a required membership threshold.
+pub struct CoverageGap {
+  start : Double
+  end : Double
+  sample_count : Int32
+}
+
+///|
+/// Scan a variable's domain and return contiguous sampled regions with weak labels.
+/// Gap endpoints are grid coordinates, not interpolated analytical boundaries.
+pub fn LinguisticVariable::partition_gaps(
+  self : LinguisticVariable,
+  resolution : Int32,
+  minimum_grade : Double,
+) -> Result[Array[CoverageGap], FuzzyError] {
+  if self.sets.length() == 0 {
+    return Err(NoLinguisticLabels(self.name))
+  }
+  if resolution < 2 {
+    return Err(InvalidResolution)
+  }
+  if minimum_grade <= 0.0 || minimum_grade > 1.0 {
+    return Err(InvalidShape)
+  }
+  let gaps = Array()
+  let step = (self.maximum - self.minimum) / (resolution - 1).to_double()
+  let mut gap_start = 0.0
+  let mut gap_length = 0
+  let mut index = 0
+  while index < resolution {
+    let x = self.minimum + index.to_double() * step
+    let mut strongest = 0.0
+    for set in self.sets {
+      let grade = set.membership(x)
+      if grade > strongest {
+        strongest = grade
+      }
+    }
+    if strongest < minimum_grade {
+      if gap_length == 0 {
+        gap_start = x
+      }
+      gap_length = gap_length + 1
+    } else if gap_length > 0 {
+      gaps.push({ start: gap_start, end: x - step, sample_count: gap_length, })
+      gap_length = 0
+    }
+    index = index + 1
+  }
+  if gap_length > 0 {
+    gaps.push({ start: gap_start, end: self.maximum, sample_count: gap_length, })
+  }
+  Ok(gaps)
+}
