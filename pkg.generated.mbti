@@ -30,7 +30,11 @@ pub fn mamdani(String, String) -> Consequent
 
 pub fn max_connective() -> Connective
 
+pub fn maximum_aggregation() -> Aggregation
+
 pub fn min_max_connective() -> Connective
+
+pub fn minimum_implication() -> Implication
 
 pub fn negate(Antecedent) -> Antecedent
 
@@ -38,7 +42,11 @@ pub fn or_max(Double, Double) -> Double
 
 pub fn or_probabilistic(Double, Double) -> Double
 
+pub fn probabilistic_aggregation() -> Aggregation
+
 pub fn probabilistic_connective() -> Connective
+
+pub fn product_implication() -> Implication
 
 pub fn product_probabilistic_connective() -> Connective
 
@@ -67,6 +75,11 @@ pub fn variable(String, Double, Double, Array[FuzzySet]) -> Result[LinguisticVar
 // Errors
 
 // Types and methods
+pub enum Aggregation {
+  MaximumAggregation
+  ProbabilisticAggregation
+}
+
 pub enum Antecedent {
   Is(String, String)
   And(Antecedent, Antecedent)
@@ -117,6 +130,11 @@ pub struct FuzzySet {
   shape : MembershipShape
 }
 pub fn FuzzySet::membership(Self, Double) -> Double
+
+pub enum Implication {
+  MinimumImplication
+  ProductImplication
+}
 
 pub struct LinguisticVariable {
   name : String
@@ -172,6 +190,7 @@ pub struct System {
 }
 pub fn System::activations(Self, Array[Double]) -> Result[Array[RuleActivation], FuzzyError]
 pub fn System::infer_mamdani(Self, Array[Double], Int32) -> Result[Array[Double], FuzzyError]
+pub fn System::infer_mamdani_with(Self, Array[Double], Int32, Implication, Aggregation, Defuzzification) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_sugeno(Self, Array[Double]) -> Result[Array[Double], FuzzyError]
 
 // Type aliases

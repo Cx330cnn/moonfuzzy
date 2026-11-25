@@ -356,3 +356,41 @@ test "sampled fuzzy Jaccard compares identical and disjoint labels" {
   assert_true(fuzzy_jaccard(first, far, 0.0, 30.0, 101) is Ok(0.0))
   assert_true(fuzzy_jaccard(first, far, 0.0, 30.0, 1) is Err(InvalidResolution))
 }
+
+///|
+test "configured Mamdani inference selects product and probabilistic operators" {
+  let antecedent = match triangle("on", 0.0, 1.0, 2.0) {
+    Ok(value) => value
+    Err(_) => abort("antecedent")
+  }
+  let consequent = match triangle("center", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("consequent")
+  }
+  let input = match variable("x", 0.0, 2.0, [antecedent]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("y", 0.0, 10.0, [consequent]) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let current_rule = match
+    rule(is_set("x", "on"), mamdani("y", "center"), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  let model = match
+    system([input], [output], [current_rule], min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("system")
+  }
+  let result = model.infer_mamdani_with(
+    [1.0],
+    201,
+    product_implication(),
+    probabilistic_aggregation(),
+    MeanOfMaximum,
+  )
+  assert_true(result is Ok([5.0]))
+}

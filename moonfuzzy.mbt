@@ -375,11 +375,31 @@ fn combine_grade(
 }
 
 ///|
-/// Evaluate a Mamdani system with sampled centroid defuzzification.
+/// Evaluate with conventional minimum implication, maximum aggregation,
+/// and sampled-centroid defuzzification defaults.
 pub fn System::infer_mamdani(
   self : System,
   values : Array[Double],
   resolution : Int32,
+) -> Result[Array[Double], FuzzyError] {
+  self.infer_mamdani_with(
+    values,
+    resolution,
+    MinimumImplication,
+    MaximumAggregation,
+    SampledCentroid,
+  )
+}
+
+///|
+/// Evaluate Mamdani rules with explicit implication, aggregation, and defuzzifier.
+pub fn System::infer_mamdani_with(
+  self : System,
+  values : Array[Double],
+  resolution : Int32,
+  implication : Implication,
+  aggregation : Aggregation,
+  defuzzification : Defuzzification,
 ) -> Result[Array[Double], FuzzyError] {
   if values.length() != self.inputs.length() {
     return Err(InputCount(self.inputs.length(), values.length()))
@@ -387,19 +407,20 @@ pub fn System::infer_mamdani(
   if resolution < 2 {
     return Err(InvalidResolution)
   }
-  let result = Array()
+  let results = Array()
   for output in self.outputs {
-    let mut numerator = 0.0
-    let mut denominator = 0.0
+    let axis = Array()
+    let grades = Array()
     let step = (output.maximum - output.minimum) / (resolution - 1).to_double()
     let mut point = 0
     while point < resolution {
       let x = output.minimum + point.to_double() * step
+      axis.push(x)
       let mut aggregate = 0.0
       for current_rule in self.rules {
         match current_rule.consequent {
-          Mamdani(variable_name, set_name) if variable_name == output.name =>
-            match
+          Mamdani(output_name, set_name) if output_name == output.name => {
+            let firing = match
               evaluate_antecedent(
                 current_rule.antecedent,
                 self.inputs,
@@ -407,31 +428,36 @@ pub fn System::infer_mamdani(
                 self.connective,
               ) {
               Err(error) => return Err(error)
-              Ok(firing) =>
-                match find_set(output, set_name) {
-                  None => return Err(MissingConsequent(output.name, set_name))
-                  Some(set) => {
-                    let clipped = and_min(
-                      firing * current_rule.weight,
-                      set.membership(x),
-                    )
-                    aggregate = or_max(aggregate, clipped)
-                  }
-                }
+              Ok(grade) => grade * current_rule.weight
             }
+            match find_set(output, set_name) {
+              None => return Err(MissingConsequent(output.name, set_name))
+              Some(set) => {
+                let membership = set.membership(x)
+                let implied = match implication {
+                  MinimumImplication => and_min(firing, membership)
+                  ProductImplication => firing * membership
+                }
+                aggregate = match aggregation {
+                  MaximumAggregation => or_max(aggregate, implied)
+                  ProbabilisticAggregation =>
+                    or_probabilistic(aggregate, implied)
+                }
+              }
+            }
+          }
           _ => ()
         }
       }
-      numerator = numerator + x * aggregate
-      denominator = denominator + aggregate
+      grades.push(aggregate)
       point = point + 1
     }
-    if denominator == 0.0 {
-      return Err(NoFiredRule(output.name))
+    match defuzzify(axis, grades, defuzzification) {
+      Err(_) => return Err(NoFiredRule(output.name))
+      Ok(value) => results.push(value)
     }
-    result.push(numerator / denominator)
   }
-  Ok(result)
+  Ok(results)
 }
 
 ///|
@@ -1084,4 +1110,42 @@ pub fn fuzzy_jaccard(
         }
       }
   }
+}
+
+///|
+/// How each Mamdani rule firing strength modifies its consequent set.
+pub enum Implication {
+  MinimumImplication
+  ProductImplication
+}
+
+///|
+/// How clipped rule consequents are combined into one output set.
+pub enum Aggregation {
+  MaximumAggregation
+  ProbabilisticAggregation
+}
+
+///|
+/// Select minimum t-norm Mamdani implication.
+pub fn minimum_implication() -> Implication {
+  MinimumImplication
+}
+
+///|
+/// Select product Mamdani implication.
+pub fn product_implication() -> Implication {
+  ProductImplication
+}
+
+///|
+/// Select maximum-s-norm consequent aggregation.
+pub fn maximum_aggregation() -> Aggregation {
+  MaximumAggregation
+}
+
+///|
+/// Select probabilistic-sum consequent aggregation.
+pub fn probabilistic_aggregation() -> Aggregation {
+  ProbabilisticAggregation
 }
