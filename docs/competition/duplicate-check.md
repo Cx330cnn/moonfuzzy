@@ -1,29 +1,43 @@
 # MoonFuzzy 选题查重记录
 
-检查日期：2026-11-25。账号/目标命名空间：Cx330cnn。当前状态：初步检索并预留；非完整语义审计，非唯一性结论。只读检索材料存放于 `C:/Users/42673/.codex/competition-deliverables/Cx330cnn/moonfuzzy/evidence/`。
+检查日期：2026-11-25。账号/目标命名空间：Cx330cnn。状态：范围受限的语义审查，尚未取得完整唯一性结论，也不代表赛事官方裁决。
 
-## 需求和比较候选
+## 候选比较
 
 | 领域 | 用户—输入—处理—结果闭环 | MoonBit 邻近 | 判断 |
 | --- | --- | --- | --- |
-| 模糊控制推理 | 控制开发者输入变量、语言集合和规则；引擎计算隶属度、激活规则、聚合及解模糊；得到可解释的连续控制量 | `moon search fuzzy --limit 100` 找到字符串匹配、fuzzy ranking/search；`Mamdani`、`Sugeno`、`defuzzify` 零结果；GitHub 查询 `fuzzy language:MoonBit` 命中字符串搜索类仓库 | 初步入选。语义方向不同；仍需对搜索结果候选实际源码/API进一步复核，并扩充检索和行为测试 |
-| UCUM / 物理单位 | 数据集成方输入 UCUM 单位表达式；解析/归一化/量纲换算；得到一致数量 | `impart563/moonucum`（UCUM 2.2）及 `FrozenLemonTee/LunarUnits`；registry 已记录既有直接实现 | 淘汰：直接功能重叠，优先贡献上游 |
-| 生存/可靠性分析 | 医疗/可靠性数据使用者输入删失时间/失效样本；拟合/生存估计；输出曲线和寿命指标 | `Lyl66655/moon-survival` 与 `wcx789ll/moon-reliability`；`moon search survival --limit 100` 已返回此类包 | 淘汰：成熟直接或高度相邻实现，独立重做价值不足 |
+| 模糊控制推理 | 控制/仿真开发者定义连续变量、语言集合和规则；执行隶属度计算、规则激活/聚合与解模糊；返回连续控制量和解释信息 | MoonCakes 中 fuzzy_match 提供字符串 Query、匹配索引/评分/搜索；fuzzyscore.mbt 实现 VS Code 风格的子序列匹配评分与高亮。输入为字符串、输出为文本匹配与排序，不是语言变量/模糊规则推理 | 继续实现，但继续查重与发布前复核仍是门禁 |
+| UCUM / 物理单位 | 集成开发者解析单位表达式并归一化、换算 | `impart563/moonucum`（UCUM）及 `FrozenLemonTee/LunarUnits` | 淘汰：有直接/高度重叠项目，优先参与上游 |
+| 生存/可靠性分析 | 医疗/可靠性使用者提供删失/失效观测，估计生存或寿命指标 | `Lyl66655/moon-survival` 与 `wcx789ll/moon-reliability` | 淘汰：直接/高度相邻实现使另起炉灶依据不足 |
 
-## 检索记录与设计基线
+## MoonFuzzy 邻近项目检查
 
-- 已运行比赛助手 `osc2026-guide` 的 Project Research Guide：本地 `moon search`，并查询 MoonCakes 与对应 GitHub 项目元数据。
-- 模糊候选扩词：`fuzzy`、`Mamdani`、`Sugeno`、`fuzzylite`、`fuzzy logic`、`fuzzy control`、`membership`、`defuzzify`、`inference`；GitHub 查询覆盖 MoonBit fuzzy 和精确 Mamdani/Sugeno/fuzzylite。
-- 其他候选查询：`UCUM`、`units`、`dimensional`、`survival`、`Kaplan`、`Weibull`。Moon 搜索结果存于上述 evidence 目录。
-- 跨生态行为基线：scikit-fuzzy 提供 Python 模糊控制工作流参考；本实现仅采用通用数学概念，未复制代码/夹具。许可证和各上游实际源码文件尚未逐项审查；不将该依赖纳入构建。
-- 已读永久项目注册表相关边界：MoonNormal 为正态概率分布/分位数/估计类库，与规则驱动模糊推理在输入模型和输出任务上不同；MoonSearch/fuzzy_match/fuzzyscore 处理文本检索排名，不实现集合隶属规则系统。
+- `moonbit-community/fuzzy_match` 的 MoonCakes 文档（检查日在线版本 0.2.6）列出 `Query::matching_indices`、`score`、`search`、`split_by_matching_sections`、`is_match` 等接口；文档说明其上游为 Jane Street `fuzzy_match`。文档源码清单包含实现和对应 `_wtest.mbt` 文件。README 与公开接口都将任务限定在字符串匹配/搜索。
+- `moonbit-community/fuzzyscore.mbt` 的仓库 README 将其定位为 VS Code fuzzyScore 的 MoonBit 移植，提供子序列匹配、分数和字符位置。不是模糊集合/模糊逻辑推理。
+- MoonBit 官方社区 awesome-moonbit 的 Libraries 清单也将 `fuzzy_match` 放在文本、数据和解析类目，并称其用于 fuzzy string matching/searching。
+- 上述项目的实际文档/API和测试清单被用于区分任务语义；没有将仓库星数、下载量或标题作为唯一判据。当前复核仍未对其所有源码逐行审计，也未穷尽所有可能的私人/新建项目。
 
-## 范围、矩阵和差异
+## 搜索范围和限制
 
-本项目拟交付规则式模糊推理引擎，而非 fuzzy string matching、统计分布估计、单位解析、可靠性拟合。主要数据模型为有界语言变量、三角/梯形/单点集合、组合前件树与 Mamdani/Sugeno 后件。目标核心是规则解释、确定性数值结果和可复用库 API。
+- 查重词覆盖 `fuzzy`、`Mamdani`、`Sugeno`、`fuzzy logic`、`fuzzy control`、`membership`、`defuzzify`、`inference`、`UCUM`、`units`、`survival`、`Kaplan`、`Weibull`，并查询 MoonCakes、GitHub 和 awesome-moonbit。
+- 使用比赛助手 `Milky2018/osc2026-guide` 的 Project Research Guide 作为检索指导；它不是权威重复判定。
+- 结果链接：
+  - https://mooncakes.io/docs/moonbit-community/fuzzy_match
+  - https://github.com/moonbit-community/fuzzyscore.mbt
+  - https://github.com/moonbitlang/awesome-moonbit
+  - https://github.com/Milky2018/osc2026-guide
+- 许可证/上游源码边界仍需在依赖或复制代码前逐项核查。本项目当前没有依赖上述 fuzzy 项目，也没有复制其代码或夹具。采用的是 Mamdani/Sugeno 公开数学概念，后续应补可追溯的教材/论文/参考实现出处。
 
-直接重叠：在已知 registry 指纹和上述有限索引结果中，未发现成熟的 MoonBit Mamdani/Sugeno 推理包。相邻但不同：模糊文本匹配（相似度/检索）；MoonNormal（概率分布）；通用数值/控制算法集合。该结论受搜索索引、分页和时间限制约束，不是对生态完整性的证明。
+## 语义矩阵
 
-## 阶段性结论与缺口
+| 项目 | 主要用户任务 | 输入 | 核心行为 | 输出 | 与 MoonFuzzy 关系 |
+| --- | --- | --- | --- | --- | --- |
+| fuzzy_match | 文本搜索/候选排序 | 查询字符串、字符串项 | 字符级匹配、分数、匹配索引/片段 | 文本命中/排序 | 同为 fuzzy 一词；问题域和数学模型不同 |
+| fuzzyscore.mbt | 编辑器/命令面板模糊检索 | pattern 与 word | 动态规划子序列评分、高亮位置 | 分数与字符位置 | 文本检索工具，不实现控制推理 |
+| MoonFuzzy（本项目） | 连续控制/仿真规则推理 | 数值、语言集合、规则 | 隶属函数、t/s 范数、前件树、Mamdani/Sugeno | 连续数值及规则激活解释 | 规则驱动模糊推理 |
 
-选题可作为有界原型继续研究。仍需：读取模糊搜索相邻包的 README、源码、测试与接口；检查 MoonBit 官方/社区清单；对公开 API 名与核心行为反向检索；为 Mamdani 建立可信参考向量、边界/未触发规则测试；补足真实下游示例。未完成这些检查前不得将查重标为通过或发布。
+## 有界范围与结论
+
+目标是可嵌入 MoonBit 控制/仿真的规则式推理引擎，而非字符串匹配、概率分布拟合、单位解析、可靠性估计或自动规则学习。当前实现是原型：已有 Mamdani 采样质心、Sugeno 加权平均、常见隶属形状、规则激活诊断和独立采样解模糊策略；还未达完整交付门槛。
+
+截至本记录覆盖的已知索引和相邻项目，没有发现成熟的 MoonBit Mamdani/Sugeno 推理实现。该有限结论不等于绝对唯一，也不足以单独放行发布。发布前还须反向检索核心 API/行为、重查 MoonCakes 与 GitHub 新近项目、完整核对上游设计依据，并更新本记录。
