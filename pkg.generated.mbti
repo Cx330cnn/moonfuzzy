@@ -18,6 +18,8 @@ pub fn defuzzify_mean_of_maximum(Array[Double], Array[Double]) -> Result[Double,
 
 pub fn either(Antecedent, Antecedent) -> Antecedent
 
+pub fn fuzzy_jaccard(FuzzySet, FuzzySet, Double, Double, Int32) -> Result[Double, FuzzyError]
+
 pub fn gaussian(String, Double, Double) -> Result[FuzzySet, FuzzyError]
 
 pub fn is_set(String, String) -> Antecedent
@@ -43,6 +45,8 @@ pub fn product_probabilistic_connective() -> Connective
 pub fn right_shoulder(String, Double, Double) -> Result[FuzzySet, FuzzyError]
 
 pub fn rule(Antecedent, Consequent, Double) -> Result[Rule, FuzzyError]
+
+pub fn sample_set(FuzzySet, Double, Double, Int32) -> Result[SampledCurve, FuzzyError]
 
 pub fn sigmoid(String, Double, Double) -> Result[FuzzySet, FuzzyError]
 
@@ -105,6 +109,7 @@ pub enum FuzzyError {
   DuplicateVariable(String)
   DuplicateSet(String, String)
   MissingOutput(String)
+  NoMembershipArea
 }
 
 pub struct FuzzySet {
@@ -151,6 +156,13 @@ pub enum SampleError {
   GradeOutOfRange
   ZeroArea
 }
+
+pub struct SampledCurve {
+  axis : Array[Double]
+  grades : Array[Double]
+}
+pub fn SampledCurve::alpha_cut(Self, Double) -> Result[(Double, Double)?, SampleError]
+pub fn SampledCurve::area(Self) -> Result[Double, SampleError]
 
 pub struct System {
   inputs : Array[LinguisticVariable]

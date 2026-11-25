@@ -35,6 +35,7 @@ pub enum FuzzyError {
   DuplicateVariable(String)
   DuplicateSet(String, String)
   MissingOutput(String)
+  NoMembershipArea
 }
 
 ///|
@@ -935,4 +936,152 @@ fn validate_rules(
     }
   }
   Ok(())
+}
+
+///|
+/// A finite grid representation of a fuzzy set over a requested interval.
+pub struct SampledCurve {
+  axis : Array[Double]
+  grades : Array[Double]
+}
+
+///|
+/// Sample one fuzzy set over an inclusive interval using a uniform grid.
+pub fn sample_set(
+  set : FuzzySet,
+  minimum : Double,
+  maximum : Double,
+  resolution : Int32,
+) -> Result[SampledCurve, FuzzyError] {
+  if minimum >= maximum {
+    return Err(EmptyDomain)
+  }
+  if resolution < 2 {
+    return Err(InvalidResolution)
+  }
+  let axis = Array()
+  let grades = Array()
+  let step = (maximum - minimum) / (resolution - 1).to_double()
+  let mut index = 0
+  while index < resolution {
+    let x = minimum + index.to_double() * step
+    axis.push(x)
+    grades.push(set.membership(x))
+    index = index + 1
+  }
+  Ok({ axis, grades, })
+}
+
+///|
+/// Return the sampled area under a validated membership curve.
+pub fn SampledCurve::area(self : SampledCurve) -> Result[Double, SampleError] {
+  if self.axis.length() != self.grades.length() {
+    return Err(SampleCountMismatch)
+  }
+  if self.axis.length() < 2 {
+    return Err(TooFewSamples)
+  }
+  let mut total = 0.0
+  let mut index = 1
+  while index < self.axis.length() {
+    if self.axis[index] <= self.axis[index - 1] {
+      return Err(NonIncreasingAxis)
+    }
+    if self.grades[index - 1] < 0.0 ||
+      self.grades[index - 1] > 1.0 ||
+      self.grades[index] < 0.0 ||
+      self.grades[index] > 1.0 {
+      return Err(GradeOutOfRange)
+    }
+    total = total +
+      (self.axis[index] - self.axis[index - 1]) *
+      (self.grades[index - 1] + self.grades[index]) /
+      2.0
+    index = index + 1
+  }
+  Ok(total)
+}
+
+///|
+/// Find the closed interval spanning sampled points at or above alpha.
+pub fn SampledCurve::alpha_cut(
+  self : SampledCurve,
+  alpha : Double,
+) -> Result[(Double, Double)?, SampleError] {
+  if alpha < 0.0 || alpha > 1.0 {
+    return Err(GradeOutOfRange)
+  }
+  if self.axis.length() != self.grades.length() {
+    return Err(SampleCountMismatch)
+  }
+  if self.axis.length() < 2 {
+    return Err(TooFewSamples)
+  }
+  let mut first = -1
+  let mut last = -1
+  let mut i = 0
+  while i < self.axis.length() {
+    if i > 0 && self.axis[i] <= self.axis[i - 1] {
+      return Err(NonIncreasingAxis)
+    }
+    if self.grades[i] < 0.0 || self.grades[i] > 1.0 {
+      return Err(GradeOutOfRange)
+    }
+    if self.grades[i] >= alpha {
+      if first < 0 {
+        first = i
+      }
+      last = i
+    }
+    i = i + 1
+  }
+  if first < 0 {
+    Ok(None)
+  } else {
+    Ok(Some((self.axis[first], self.axis[last])))
+  }
+}
+
+///|
+/// Compute a sampled Jaccard-style similarity between two fuzzy sets.
+pub fn fuzzy_jaccard(
+  left : FuzzySet,
+  right : FuzzySet,
+  minimum : Double,
+  maximum : Double,
+  resolution : Int32,
+) -> Result[Double, FuzzyError] {
+  match sample_set(left, minimum, maximum, resolution) {
+    Err(error) => Err(error)
+    Ok(left_curve) =>
+      match sample_set(right, minimum, maximum, resolution) {
+        Err(error) => Err(error)
+        Ok(right_curve) => {
+          let mut intersection = 0.0
+          let mut union = 0.0
+          let mut index = 1
+          while index < resolution {
+            let width = left_curve.axis[index] - left_curve.axis[index - 1]
+            let left_low = left_curve.grades[index - 1]
+            let left_high = left_curve.grades[index]
+            let right_low = right_curve.grades[index - 1]
+            let right_high = right_curve.grades[index]
+            intersection = intersection +
+              width *
+              (and_min(left_low, right_low) + and_min(left_high, right_high)) /
+              2.0
+            union = union +
+              width *
+              (or_max(left_low, right_low) + or_max(left_high, right_high)) /
+              2.0
+            index = index + 1
+          }
+          if union == 0.0 {
+            Err(NoMembershipArea)
+          } else {
+            Ok(intersection / union)
+          }
+        }
+      }
+  }
 }

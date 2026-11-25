@@ -313,3 +313,46 @@ test "system construction rejects duplicate labels and bad Sugeno dimensions" {
     is Err(CoefficientCount("y")),
   )
 }
+
+///|
+test "sampled curves expose area and alpha cuts" {
+  let triangle = match triangle("mid", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("triangle")
+  }
+  let curve = match sample_set(triangle, 0.0, 10.0, 11) {
+    Ok(value) => value
+    Err(_) => abort("sample")
+  }
+  assert_true(
+    match curve.area() {
+      Ok(value) => value > 4.999 && value < 5.001
+      Err(_) => false
+    },
+  )
+  assert_true(curve.alpha_cut(0.5) is Ok(Some((3.0, 7.0))))
+  assert_true(curve.alpha_cut(1.0) is Ok(Some((5.0, 5.0))))
+  assert_true(curve.alpha_cut(1.1) is Err(GradeOutOfRange))
+  assert_true(
+    { axis: [0.0], grades: [1.0, 0.0], }.area() is Err(SampleCountMismatch),
+  )
+}
+
+///|
+test "sampled fuzzy Jaccard compares identical and disjoint labels" {
+  let first = match triangle("first", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("first")
+  }
+  let identical = match triangle("copy", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("copy")
+  }
+  let far = match triangle("far", 20.0, 25.0, 30.0) {
+    Ok(value) => value
+    Err(_) => abort("far")
+  }
+  assert_true(fuzzy_jaccard(first, identical, 0.0, 10.0, 101) is Ok(1.0))
+  assert_true(fuzzy_jaccard(first, far, 0.0, 30.0, 101) is Ok(0.0))
+  assert_true(fuzzy_jaccard(first, far, 0.0, 30.0, 1) is Err(InvalidResolution))
+}
