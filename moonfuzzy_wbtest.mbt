@@ -129,3 +129,79 @@ test "mamdani rejects no fired rules and too-coarse grids" {
   assert_true(model.infer_mamdani([9.0], 11) is Err(NoFiredRule("y")))
   assert_true(model.infer_mamdani([1.0], 1) is Err(InvalidResolution))
 }
+
+///|
+test "gaussian and sigmoid membership are bounded and oriented" {
+  let bell = match gaussian("bell", 2.0, 2.0) {
+    Ok(value) => value
+    Err(_) => abort("gaussian")
+  }
+  assert_eq(bell.membership(2.0), 1.0)
+  assert_true(bell.membership(0.0) > 0.60 && bell.membership(0.0) < 0.61)
+  let rising = match sigmoid("rising", 2.0, 0.0) {
+    Ok(value) => value
+    Err(_) => abort("sigmoid")
+  }
+  assert_eq(rising.membership(0.0), 0.5)
+  assert_true(rising.membership(3.0) > rising.membership(-3.0))
+  assert_true(gaussian("bad", 0.0, 0.0) is Err(InvalidShape))
+  assert_true(sigmoid("bad", 0.0, 0.0) is Err(InvalidShape))
+}
+
+///|
+test "shoulders and fuzzification preserve boundary grades" {
+  let low = match left_shoulder("low", 2.0, 6.0) {
+    Ok(value) => value
+    Err(_) => abort("left")
+  }
+  let high = match right_shoulder("high", 4.0, 8.0) {
+    Ok(value) => value
+    Err(_) => abort("right")
+  }
+  assert_eq(low.membership(-10.0), 1.0)
+  assert_eq(low.membership(6.0), 0.0)
+  assert_eq(high.membership(4.0), 0.0)
+  assert_eq(high.membership(10.0), 1.0)
+  let input = match variable("load", 0.0, 10.0, [low, high]) {
+    Ok(value) => value
+    Err(_) => abort("variable")
+  }
+  assert_eq(input.fuzzify(4.0), [0.5, 0.0])
+  assert_eq(input.maximizers(4.0), ["low"])
+}
+
+///|
+test "rule activations retain both raw and weighted firing strengths" {
+  let active = match triangle("active", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("set")
+  }
+  let input = match variable("x", 0.0, 10.0, [active]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("y", 0.0, 1.0, []) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let current_rule = match
+    rule(is_set("x", "active"), sugeno_constant("y", 1.0), 0.4) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  let model = match
+    system([input], [output], [current_rule], min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("system")
+  }
+  match model.activations([5.0]) {
+    Err(_) => abort("activation failed")
+    Ok(items) => {
+      assert_eq(items.length(), 1)
+      assert_eq(items[0].rule_index, 0)
+      assert_eq(items[0].antecedent_grade, 1.0)
+      assert_eq(items[0].weighted_grade, 0.4)
+    }
+  }
+  assert_true(model.activations([]) is Err(InputCount(1, 0)))
+}

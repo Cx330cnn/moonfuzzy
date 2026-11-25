@@ -4,6 +4,10 @@ pub enum MembershipShape {
   Triangle(Double, Double, Double)
   Trapezoid(Double, Double, Double, Double)
   Singleton(Double)
+  Gaussian(Double, Double)
+  Sigmoid(Double, Double)
+  LeftShoulder(Double, Double)
+  RightShoulder(Double, Double)
 }
 
 ///|
@@ -21,7 +25,7 @@ pub enum FuzzyError {
   EmptyDomain
   MissingInput(String)
   MissingSet(String, String)
-  InputCount(Int, Int)
+  InputCount(Int32, Int32)
   MissingConsequent(String, String)
   NoFiredRule(String)
   CoefficientCount(String)
@@ -111,6 +115,27 @@ pub fn FuzzySet::membership(self : FuzzySet, value : Double) -> Double {
         (d - value) / (d - c)
       }
     Singleton(x) => if value == x { 1.0 } else { 0.0 }
+    Gaussian(center, spread) => {
+      let z = (value - center) / spread
+      @math.exp(-0.5 * z * z)
+    }
+    Sigmoid(slope, center) => 1.0 / (1.0 + @math.exp(-slope * (value - center)))
+    LeftShoulder(plateau_end, zero_start) =>
+      if value <= plateau_end {
+        1.0
+      } else if value >= zero_start {
+        0.0
+      } else {
+        (zero_start - value) / (zero_start - plateau_end)
+      }
+    RightShoulder(zero_end, plateau_start) =>
+      if value <= zero_end {
+        0.0
+      } else if value >= plateau_start {
+        1.0
+      } else {
+        (value - zero_end) / (plateau_start - zero_end)
+      }
   }
 }
 
@@ -235,7 +260,10 @@ pub fn system(
 
 ///|
 /// Resolve a variable by name, returning its position for compact rule evaluation.
-fn find_variable(variables : Array[LinguisticVariable], name : String) -> Int? {
+fn find_variable(
+  variables : Array[LinguisticVariable],
+  name : String,
+) -> Int32? {
   let mut index = 0
   while index < variables.length() {
     if variables[index].name == name {
@@ -335,7 +363,7 @@ fn combine_grade(
 pub fn System::infer_mamdani(
   self : System,
   values : Array[Double],
-  resolution : Int,
+  resolution : Int32,
 ) -> Result[Array[Double], FuzzyError] {
   if values.length() != self.inputs.length() {
     return Err(InputCount(self.inputs.length(), values.length()))
@@ -522,4 +550,144 @@ pub fn max_connective() -> Connective {
 /// Select product-AND with probabilistic-sum OR.
 pub fn probabilistic_connective() -> Connective {
   ProbabilisticSum
+}
+
+///|
+/// Create a symmetric Gaussian set with a positive standard-deviation scale.
+pub fn gaussian(
+  name : String,
+  center : Double,
+  spread : Double,
+) -> Result[FuzzySet, FuzzyError] {
+  if name == "" {
+    return Err(EmptyName)
+  }
+  if spread <= 0.0 {
+    return Err(InvalidShape)
+  }
+  Ok({ name, shape: Gaussian(center, spread), })
+}
+
+///|
+/// Create a logistic S-curve. Positive slope is increasing; negative slope is decreasing.
+pub fn sigmoid(
+  name : String,
+  slope : Double,
+  center : Double,
+) -> Result[FuzzySet, FuzzyError] {
+  if name == "" {
+    return Err(EmptyName)
+  }
+  if slope == 0.0 {
+    return Err(InvalidShape)
+  }
+  Ok({ name, shape: Sigmoid(slope, center), })
+}
+
+///|
+/// Create a left-shoulder set that remains fully active below its domain.
+pub fn left_shoulder(
+  name : String,
+  plateau_end : Double,
+  zero_start : Double,
+) -> Result[FuzzySet, FuzzyError] {
+  if name == "" {
+    return Err(EmptyName)
+  }
+  if plateau_end >= zero_start {
+    return Err(InvalidShape)
+  }
+  Ok({ name, shape: LeftShoulder(plateau_end, zero_start), })
+}
+
+///|
+/// Create a right-shoulder set that remains fully active above its domain.
+pub fn right_shoulder(
+  name : String,
+  zero_end : Double,
+  plateau_start : Double,
+) -> Result[FuzzySet, FuzzyError] {
+  if name == "" {
+    return Err(EmptyName)
+  }
+  if zero_end >= plateau_start {
+    return Err(InvalidShape)
+  }
+  Ok({ name, shape: RightShoulder(zero_end, plateau_start), })
+}
+
+///|
+/// Fuzzify one crisp value into a vector ordered like the variable's set list.
+pub fn LinguisticVariable::fuzzify(
+  self : LinguisticVariable,
+  value : Double,
+) -> Array[Double] {
+  let grades = Array()
+  for set in self.sets {
+    grades.push(set.membership(value))
+  }
+  grades
+}
+
+///|
+/// Find the strongest linguistic labels for an input value, preserving ties.
+pub fn LinguisticVariable::maximizers(
+  self : LinguisticVariable,
+  value : Double,
+) -> Array[String] {
+  let mut best = -1.0
+  let labels = Array()
+  for set in self.sets {
+    let grade = set.membership(value)
+    if grade > best {
+      best = grade
+      labels.clear()
+      labels.push(set.name)
+    } else if grade == best {
+      labels.push(set.name)
+    }
+  }
+  labels
+}
+
+///|
+/// Explain how strongly each rule fires for one ordered input vector.
+pub struct RuleActivation {
+  rule_index : Int32
+  antecedent_grade : Double
+  weighted_grade : Double
+}
+
+///|
+/// Evaluate every rule antecedent and return its unweighted and weighted strength.
+/// This is useful for debugging rule bases and explaining Mamdani or Sugeno results.
+pub fn System::activations(
+  self : System,
+  values : Array[Double],
+) -> Result[Array[RuleActivation], FuzzyError] {
+  if values.length() != self.inputs.length() {
+    return Err(InputCount(self.inputs.length(), values.length()))
+  }
+  let result = Array()
+  let mut index = 0
+  while index < self.rules.length() {
+    let current_rule = self.rules[index]
+    match
+      evaluate_antecedent(
+        current_rule.antecedent,
+        self.inputs,
+        values,
+        self.connective,
+      ) {
+      Err(error) => return Err(error)
+      Ok(grade) =>
+        result.push({
+          rule_index: index,
+          antecedent_grade: grade,
+          weighted_grade: grade * current_rule.weight,
+        })
+    }
+    index = index + 1
+  }
+  Ok(result)
 }

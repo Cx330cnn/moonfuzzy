@@ -10,7 +10,11 @@ pub fn both(Antecedent, Antecedent) -> Antecedent
 
 pub fn either(Antecedent, Antecedent) -> Antecedent
 
+pub fn gaussian(String, Double, Double) -> Result[FuzzySet, FuzzyError]
+
 pub fn is_set(String, String) -> Antecedent
+
+pub fn left_shoulder(String, Double, Double) -> Result[FuzzySet, FuzzyError]
 
 pub fn mamdani(String, String) -> Consequent
 
@@ -28,7 +32,11 @@ pub fn probabilistic_connective() -> Connective
 
 pub fn product_probabilistic_connective() -> Connective
 
+pub fn right_shoulder(String, Double, Double) -> Result[FuzzySet, FuzzyError]
+
 pub fn rule(Antecedent, Consequent, Double) -> Result[Rule, FuzzyError]
+
+pub fn sigmoid(String, Double, Double) -> Result[FuzzySet, FuzzyError]
 
 pub fn singleton(String, Double) -> Result[FuzzySet, FuzzyError]
 
@@ -73,7 +81,7 @@ pub enum FuzzyError {
   EmptyDomain
   MissingInput(String)
   MissingSet(String, String)
-  InputCount(Int, Int)
+  InputCount(Int32, Int32)
   MissingConsequent(String, String)
   NoFiredRule(String)
   CoefficientCount(String)
@@ -94,11 +102,17 @@ pub struct LinguisticVariable {
   maximum : Double
   sets : Array[FuzzySet]
 }
+pub fn LinguisticVariable::fuzzify(Self, Double) -> Array[Double]
+pub fn LinguisticVariable::maximizers(Self, Double) -> Array[String]
 
 pub enum MembershipShape {
   Triangle(Double, Double, Double)
   Trapezoid(Double, Double, Double, Double)
   Singleton(Double)
+  Gaussian(Double, Double)
+  Sigmoid(Double, Double)
+  LeftShoulder(Double, Double)
+  RightShoulder(Double, Double)
 }
 
 pub struct Rule {
@@ -107,13 +121,20 @@ pub struct Rule {
   weight : Double
 }
 
+pub struct RuleActivation {
+  rule_index : Int32
+  antecedent_grade : Double
+  weighted_grade : Double
+}
+
 pub struct System {
   inputs : Array[LinguisticVariable]
   outputs : Array[LinguisticVariable]
   rules : Array[Rule]
   connective : Connective
 }
-pub fn System::infer_mamdani(Self, Array[Double], Int) -> Result[Array[Double], FuzzyError]
+pub fn System::activations(Self, Array[Double]) -> Result[Array[RuleActivation], FuzzyError]
+pub fn System::infer_mamdani(Self, Array[Double], Int32) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_sugeno(Self, Array[Double]) -> Result[Array[Double], FuzzyError]
 
 // Type aliases
