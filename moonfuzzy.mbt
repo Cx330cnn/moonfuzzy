@@ -691,3 +691,134 @@ pub fn System::activations(
   }
   Ok(result)
 }
+
+///|
+/// Strategy for converting a sampled fuzzy output into one crisp value.
+pub enum Defuzzification {
+  SampledCentroid
+  Bisector
+  MeanOfMaximum
+}
+
+///|
+/// Errors specific to sampled-output defuzzification.
+pub enum SampleError {
+  SampleCountMismatch
+  TooFewSamples
+  NonIncreasingAxis
+  GradeOutOfRange
+  ZeroArea
+}
+
+///|
+/// Defuzzify grades sampled at strictly increasing axis coordinates.
+/// Centroid and bisector use trapezoidal segment areas; mean-of-maximum
+/// averages coordinates that attain the maximum sampled grade.
+pub fn defuzzify(
+  axis : Array[Double],
+  grades : Array[Double],
+  strategy : Defuzzification,
+) -> Result[Double, SampleError] {
+  if axis.length() != grades.length() {
+    return Err(SampleCountMismatch)
+  }
+  if axis.length() < 2 {
+    return Err(TooFewSamples)
+  }
+  let mut i = 0
+  while i < axis.length() {
+    if grades[i] < 0.0 || grades[i] > 1.0 {
+      return Err(GradeOutOfRange)
+    }
+    if i > 0 && axis[i] <= axis[i - 1] {
+      return Err(NonIncreasingAxis)
+    }
+    i = i + 1
+  }
+  match strategy {
+    MeanOfMaximum => {
+      let mut maximum = grades[0]
+      for grade in grades {
+        if grade > maximum {
+          maximum = grade
+        }
+      }
+      if maximum == 0.0 {
+        return Err(ZeroArea)
+      }
+      let mut sum = 0.0
+      let mut count = 0
+      let mut j = 0
+      while j < grades.length() {
+        if grades[j] == maximum {
+          sum = sum + axis[j]
+          count = count + 1
+        }
+        j = j + 1
+      }
+      Ok(sum / count.to_double())
+    }
+    SampledCentroid | Bisector => {
+      let mut total_area = 0.0
+      let mut moment = 0.0
+      let mut j = 1
+      while j < axis.length() {
+        let width = axis[j] - axis[j - 1]
+        let area = width * (grades[j - 1] + grades[j]) / 2.0
+        total_area = total_area + area
+        moment = moment + area * (axis[j - 1] + axis[j]) / 2.0
+        j = j + 1
+      }
+      if total_area == 0.0 {
+        return Err(ZeroArea)
+      }
+      match strategy {
+        SampledCentroid => Ok(moment / total_area)
+        Bisector => {
+          let target = total_area / 2.0
+          let mut accumulated = 0.0
+          let mut k = 1
+          while k < axis.length() {
+            let width = axis[k] - axis[k - 1]
+            let area = width * (grades[k - 1] + grades[k]) / 2.0
+            if accumulated + area >= target {
+              let fraction = (target - accumulated) / area
+              return Ok(axis[k - 1] + fraction * width)
+            }
+            accumulated = accumulated + area
+            k = k + 1
+          }
+          Ok(axis[axis.length() - 1])
+        }
+        MeanOfMaximum => Err(ZeroArea)
+      }
+    }
+  }
+}
+
+///|
+/// Convenience wrapper for sampled centroid defuzzification.
+pub fn defuzzify_centroid(
+  axis : Array[Double],
+  grades : Array[Double],
+) -> Result[Double, SampleError] {
+  defuzzify(axis, grades, SampledCentroid)
+}
+
+///|
+/// Convenience wrapper for bisector defuzzification.
+pub fn defuzzify_bisector(
+  axis : Array[Double],
+  grades : Array[Double],
+) -> Result[Double, SampleError] {
+  defuzzify(axis, grades, Bisector)
+}
+
+///|
+/// Convenience wrapper for mean-of-maximum defuzzification.
+pub fn defuzzify_mean_of_maximum(
+  axis : Array[Double],
+  grades : Array[Double],
+) -> Result[Double, SampleError] {
+  defuzzify(axis, grades, MeanOfMaximum)
+}

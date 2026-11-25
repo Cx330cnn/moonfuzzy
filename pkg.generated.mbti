@@ -8,6 +8,14 @@ pub fn and_product(Double, Double) -> Double
 
 pub fn both(Antecedent, Antecedent) -> Antecedent
 
+pub fn defuzzify(Array[Double], Array[Double], Defuzzification) -> Result[Double, SampleError]
+
+pub fn defuzzify_bisector(Array[Double], Array[Double]) -> Result[Double, SampleError]
+
+pub fn defuzzify_centroid(Array[Double], Array[Double]) -> Result[Double, SampleError]
+
+pub fn defuzzify_mean_of_maximum(Array[Double], Array[Double]) -> Result[Double, SampleError]
+
 pub fn either(Antecedent, Antecedent) -> Antecedent
 
 pub fn gaussian(String, Double, Double) -> Result[FuzzySet, FuzzyError]
@@ -75,6 +83,12 @@ pub enum Consequent {
   SugenoLinear(String, Double, Array[Double])
 }
 
+pub enum Defuzzification {
+  SampledCentroid
+  Bisector
+  MeanOfMaximum
+}
+
 pub enum FuzzyError {
   EmptyName
   InvalidShape
@@ -125,6 +139,14 @@ pub struct RuleActivation {
   rule_index : Int32
   antecedent_grade : Double
   weighted_grade : Double
+}
+
+pub enum SampleError {
+  SampleCountMismatch
+  TooFewSamples
+  NonIncreasingAxis
+  GradeOutOfRange
+  ZeroArea
 }
 
 pub struct System {

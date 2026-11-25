@@ -205,3 +205,22 @@ test "rule activations retain both raw and weighted firing strengths" {
   }
   assert_true(model.activations([]) is Err(InputCount(1, 0)))
 }
+
+///|
+test "sample defuzzifiers distinguish centroid bisector and maximum" {
+  let axis = [0.0, 1.0, 2.0, 3.0]
+  let grades = [0.0, 1.0, 1.0, 0.0]
+  assert_true(defuzzify(axis, grades, SampledCentroid) is Ok(1.5))
+  assert_true(defuzzify(axis, grades, Bisector) is Ok(1.5))
+  assert_true(defuzzify(axis, grades, MeanOfMaximum) is Ok(1.5))
+  assert_true(defuzzify([0.0], [1.0], SampledCentroid) is Err(TooFewSamples))
+  assert_true(
+    defuzzify([0.0, 1.0], [0.0, 0.0], SampledCentroid) is Err(ZeroArea),
+  )
+  assert_true(
+    defuzzify([0.0, 0.0], [0.0, 1.0], SampledCentroid) is Err(NonIncreasingAxis),
+  )
+  assert_true(
+    defuzzify([0.0, 1.0], [0.0, 1.1], SampledCentroid) is Err(GradeOutOfRange),
+  )
+}
