@@ -1216,3 +1216,82 @@ pub fn System::coverage(
     average_strength: total / samples.length().to_double(),
   })
 }
+
+///|
+/// One rule's weighted contribution to a Sugeno output.
+pub struct SugenoContribution {
+  rule_index : Int32
+  firing_strength : Double
+  consequent_value : Double
+  weighted_value : Double
+}
+
+///|
+/// Explain each rule's contribution to one named Sugeno output.
+pub fn System::sugeno_contributions(
+  self : System,
+  output_name : String,
+  values : Array[Double],
+) -> Result[Array[SugenoContribution], FuzzyError] {
+  if values.length() != self.inputs.length() {
+    return Err(InputCount(self.inputs.length(), values.length()))
+  }
+  if find_variable(self.outputs, output_name) is None {
+    return Err(MissingOutput(output_name))
+  }
+  let contributions = Array()
+  let mut index = 0
+  while index < self.rules.length() {
+    let current_rule = self.rules[index]
+    match current_rule.consequent {
+      SugenoConstant(name, value) if name == output_name => {
+        let grade = match
+          evaluate_antecedent(
+            current_rule.antecedent,
+            self.inputs,
+            values,
+            self.connective,
+          ) {
+          Err(error) => return Err(error)
+          Ok(value) => value * current_rule.weight
+        }
+        contributions.push({
+          rule_index: index,
+          firing_strength: grade,
+          consequent_value: value,
+          weighted_value: grade * value,
+        })
+      }
+      SugenoLinear(name, bias, coefficients) if name == output_name => {
+        if coefficients.length() != values.length() {
+          return Err(CoefficientCount(output_name))
+        }
+        let mut output = bias
+        let mut input_index = 0
+        while input_index < values.length() {
+          output = output + coefficients[input_index] * values[input_index]
+          input_index = input_index + 1
+        }
+        let grade = match
+          evaluate_antecedent(
+            current_rule.antecedent,
+            self.inputs,
+            values,
+            self.connective,
+          ) {
+          Err(error) => return Err(error)
+          Ok(value) => value * current_rule.weight
+        }
+        contributions.push({
+          rule_index: index,
+          firing_strength: grade,
+          consequent_value: output,
+          weighted_value: grade * output,
+        })
+      }
+      _ => ()
+    }
+    index = index + 1
+  }
+  Ok(contributions)
+}

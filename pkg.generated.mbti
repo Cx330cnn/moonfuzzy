@@ -196,6 +196,13 @@ pub struct SampledCurve {
 pub fn SampledCurve::alpha_cut(Self, Double) -> Result[(Double, Double)?, SampleError]
 pub fn SampledCurve::area(Self) -> Result[Double, SampleError]
 
+pub struct SugenoContribution {
+  rule_index : Int32
+  firing_strength : Double
+  consequent_value : Double
+  weighted_value : Double
+}
+
 pub struct System {
   inputs : Array[LinguisticVariable]
   outputs : Array[LinguisticVariable]
@@ -207,6 +214,7 @@ pub fn System::coverage(Self, Array[Array[Double]], Double) -> Result[CoverageRe
 pub fn System::infer_mamdani(Self, Array[Double], Int32) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_mamdani_with(Self, Array[Double], Int32, Implication, Aggregation, Defuzzification) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_sugeno(Self, Array[Double]) -> Result[Array[Double], FuzzyError]
+pub fn System::sugeno_contributions(Self, String, Array[Double]) -> Result[Array[SugenoContribution], FuzzyError]
 
 // Type aliases
 

@@ -440,3 +440,39 @@ test "rule coverage identifies uncovered input samples" {
   assert_true(model.coverage([], 0.2) is Err(EmptySamples))
   assert_true(model.coverage([[1.0]], 2.0) is Err(InvalidCoverageThreshold))
 }
+
+///|
+test "Sugeno contribution trace explains weighted output terms" {
+  let low = match triangle("low", 0.0, 0.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("low")
+  }
+  let input = match variable("temperature", 0.0, 10.0, [low]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("fan", 0.0, 100.0, []) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let current_rule = match
+    rule(is_set("temperature", "low"), sugeno_linear("fan", 10.0, [2.0]), 0.5) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  let model = match
+    system([input], [output], [current_rule], min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("system")
+  }
+  match model.sugeno_contributions("fan", [2.5]) {
+    Err(_) => abort("trace")
+    Ok(items) => {
+      assert_eq(items.length(), 1)
+      assert_eq(items[0].rule_index, 0)
+      assert_eq(items[0].firing_strength, 0.375)
+      assert_eq(items[0].consequent_value, 15.0)
+      assert_eq(items[0].weighted_value, 5.625)
+    }
+  }
+}
