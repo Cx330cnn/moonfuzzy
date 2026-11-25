@@ -1,0 +1,5 @@
+// import {
+//   "Cx330cnn/moonfuzzy" @lib,
+// }
+
+pkgtype(kind: "executable")

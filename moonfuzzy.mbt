@@ -1,0 +1,525 @@
+///|
+/// A normalized shape used to turn a crisp input into a membership grade.
+pub enum MembershipShape {
+  Triangle(Double, Double, Double)
+  Trapezoid(Double, Double, Double, Double)
+  Singleton(Double)
+}
+
+///|
+/// A named fuzzy set over one input or output domain.
+pub struct FuzzySet {
+  name : String
+  shape : MembershipShape
+}
+
+///|
+/// Errors returned when a model or evaluation request is malformed.
+pub enum FuzzyError {
+  EmptyName
+  InvalidShape
+  EmptyDomain
+  MissingInput(String)
+  MissingSet(String, String)
+  InputCount(Int, Int)
+  MissingConsequent(String, String)
+  NoFiredRule(String)
+  CoefficientCount(String)
+  EmptyRuleBase
+  InvalidResolution
+  InvalidWeight
+}
+
+///|
+/// A linguistic variable groups fuzzy sets over a bounded crisp domain.
+pub struct LinguisticVariable {
+  name : String
+  minimum : Double
+  maximum : Double
+  sets : Array[FuzzySet]
+}
+
+///|
+/// Create a validated triangular membership function.
+pub fn triangle(
+  name : String,
+  left : Double,
+  peak : Double,
+  right : Double,
+) -> Result[FuzzySet, FuzzyError] {
+  if name == "" {
+    return Err(EmptyName)
+  }
+  if left > peak || peak > right || left == right {
+    return Err(InvalidShape)
+  }
+  Ok({ name, shape: Triangle(left, peak, right), })
+}
+
+///|
+/// Create a validated trapezoidal membership function.
+pub fn trapezoid(
+  name : String,
+  left : Double,
+  shoulder_left : Double,
+  shoulder_right : Double,
+  right : Double,
+) -> Result[FuzzySet, FuzzyError] {
+  if name == "" {
+    return Err(EmptyName)
+  }
+  if left > shoulder_left ||
+    shoulder_left > shoulder_right ||
+    shoulder_right > right ||
+    left == right {
+    return Err(InvalidShape)
+  }
+  Ok({ name, shape: Trapezoid(left, shoulder_left, shoulder_right, right), })
+}
+
+///|
+/// Create a singleton set, useful for discrete domains.
+pub fn singleton(name : String, value : Double) -> Result[FuzzySet, FuzzyError] {
+  if name == "" {
+    return Err(EmptyName)
+  }
+  Ok({ name, shape: Singleton(value), })
+}
+
+///|
+/// Return the degree to which a crisp value belongs to a set, in [0, 1].
+pub fn FuzzySet::membership(self : FuzzySet, value : Double) -> Double {
+  match self.shape {
+    Triangle(a, b, c) =>
+      if value < a || value > c {
+        0.0
+      } else if value == b {
+        1.0
+      } else if value < b {
+        (value - a) / (b - a)
+      } else {
+        (c - value) / (c - b)
+      }
+    Trapezoid(a, b, c, d) =>
+      if value < a || value > d {
+        0.0
+      } else if value >= b && value <= c {
+        1.0
+      } else if value < b {
+        (value - a) / (b - a)
+      } else {
+        (d - value) / (d - c)
+      }
+    Singleton(x) => if value == x { 1.0 } else { 0.0 }
+  }
+}
+
+///|
+/// Create a variable with a checked, non-empty domain.
+pub fn variable(
+  name : String,
+  minimum : Double,
+  maximum : Double,
+  sets : Array[FuzzySet],
+) -> Result[LinguisticVariable, FuzzyError] {
+  if name == "" {
+    return Err(EmptyName)
+  }
+  if minimum >= maximum {
+    return Err(EmptyDomain)
+  }
+  Ok({ name, minimum, maximum, sets, })
+}
+
+///|
+/// Combine antecedent grades using the minimum t-norm.
+pub fn and_min(left : Double, right : Double) -> Double {
+  if left < right {
+    left
+  } else {
+    right
+  }
+}
+
+///|
+/// Combine antecedent grades using the product t-norm.
+pub fn and_product(left : Double, right : Double) -> Double {
+  left * right
+}
+
+///|
+/// Combine alternative antecedent grades using the maximum s-norm.
+pub fn or_max(left : Double, right : Double) -> Double {
+  if left > right {
+    left
+  } else {
+    right
+  }
+}
+
+///|
+/// Combine alternative antecedent grades using the probabilistic sum.
+pub fn or_probabilistic(left : Double, right : Double) -> Double {
+  left + right - left * right
+}
+
+///|
+/// Logical operator used to combine rule antecedents.
+pub enum Connective {
+  Minimum
+  Product
+  Maximum
+  ProbabilisticSum
+}
+
+///|
+/// A fuzzy proposition selects a named set on a named variable.
+pub enum Antecedent {
+  Is(String, String)
+  And(Antecedent, Antecedent)
+  Or(Antecedent, Antecedent)
+  Not(Antecedent)
+}
+
+///|
+/// A zero-order Sugeno consequent is a constant crisp output.
+pub enum Consequent {
+  Mamdani(String, String)
+  SugenoConstant(String, Double)
+  SugenoLinear(String, Double, Array[Double])
+}
+
+///|
+/// A weighted fuzzy production rule.
+pub struct Rule {
+  antecedent : Antecedent
+  consequent : Consequent
+  weight : Double
+}
+
+///|
+/// A reusable rule base with explicit input and output variables.
+pub struct System {
+  inputs : Array[LinguisticVariable]
+  outputs : Array[LinguisticVariable]
+  rules : Array[Rule]
+  connective : Connective
+}
+
+///|
+/// Create a weighted rule. Weight must lie in the closed unit interval.
+pub fn rule(
+  antecedent : Antecedent,
+  consequent : Consequent,
+  weight : Double,
+) -> Result[Rule, FuzzyError] {
+  if weight < 0.0 || weight > 1.0 {
+    return Err(InvalidWeight)
+  }
+  Ok({ antecedent, consequent, weight, })
+}
+
+///|
+/// Build a system after checking that its rule base is non-empty.
+pub fn system(
+  inputs : Array[LinguisticVariable],
+  outputs : Array[LinguisticVariable],
+  rules : Array[Rule],
+  connective : Connective,
+) -> Result[System, FuzzyError] {
+  if rules.length() == 0 {
+    return Err(EmptyRuleBase)
+  }
+  Ok({ inputs, outputs, rules, connective, })
+}
+
+///|
+/// Resolve a variable by name, returning its position for compact rule evaluation.
+fn find_variable(variables : Array[LinguisticVariable], name : String) -> Int? {
+  let mut index = 0
+  while index < variables.length() {
+    if variables[index].name == name {
+      return Some(index)
+    }
+    index = index + 1
+  }
+  None
+}
+
+///|
+/// Resolve a fuzzy set inside a variable by name.
+fn find_set(variable : LinguisticVariable, name : String) -> FuzzySet? {
+  let mut index = 0
+  while index < variable.sets.length() {
+    if variable.sets[index].name == name {
+      return Some(variable.sets[index])
+    }
+    index = index + 1
+  }
+  None
+}
+
+///|
+/// Evaluate one proposition tree against an ordered input vector.
+fn evaluate_antecedent(
+  node : Antecedent,
+  variables : Array[LinguisticVariable],
+  values : Array[Double],
+  connective : Connective,
+) -> Result[Double, FuzzyError] {
+  match node {
+    Is(variable_name, set_name) =>
+      match find_variable(variables, variable_name) {
+        None => Err(MissingInput(variable_name))
+        Some(index) =>
+          match find_set(variables[index], set_name) {
+            None => Err(MissingSet(variable_name, set_name))
+            Some(set) => Ok(set.membership(values[index]))
+          }
+      }
+    Not(child) =>
+      match evaluate_antecedent(child, variables, values, connective) {
+        Err(error) => Err(error)
+        Ok(grade) => Ok(1.0 - grade)
+      }
+    And(left, right) =>
+      combine_children(left, right, variables, values, connective, true)
+    Or(left, right) =>
+      combine_children(left, right, variables, values, connective, false)
+  }
+}
+
+///|
+/// Evaluate both branches and apply the configured t-norm/s-norm.
+fn combine_children(
+  left : Antecedent,
+  right : Antecedent,
+  variables : Array[LinguisticVariable],
+  values : Array[Double],
+  connective : Connective,
+  is_and : Bool,
+) -> Result[Double, FuzzyError] {
+  match evaluate_antecedent(left, variables, values, connective) {
+    Err(error) => Err(error)
+    Ok(a) =>
+      match evaluate_antecedent(right, variables, values, connective) {
+        Err(error) => Err(error)
+        Ok(b) => Ok(combine_grade(a, b, connective, is_and))
+      }
+  }
+}
+
+///|
+/// Apply a fuzzy t-norm or s-norm to a pair of grades.
+fn combine_grade(
+  a : Double,
+  b : Double,
+  connective : Connective,
+  is_and : Bool,
+) -> Double {
+  match connective {
+    Minimum => if is_and { and_min(a, b) } else { or_max(a, b) }
+    Product => if is_and { and_product(a, b) } else { or_probabilistic(a, b) }
+    Maximum => if is_and { and_min(a, b) } else { or_max(a, b) }
+    ProbabilisticSum =>
+      if is_and {
+        and_product(a, b)
+      } else {
+        or_probabilistic(a, b)
+      }
+  }
+}
+
+///|
+/// Evaluate a Mamdani system with sampled centroid defuzzification.
+pub fn System::infer_mamdani(
+  self : System,
+  values : Array[Double],
+  resolution : Int,
+) -> Result[Array[Double], FuzzyError] {
+  if values.length() != self.inputs.length() {
+    return Err(InputCount(self.inputs.length(), values.length()))
+  }
+  if resolution < 2 {
+    return Err(InvalidResolution)
+  }
+  let result = Array()
+  for output in self.outputs {
+    let mut numerator = 0.0
+    let mut denominator = 0.0
+    let step = (output.maximum - output.minimum) / (resolution - 1).to_double()
+    let mut point = 0
+    while point < resolution {
+      let x = output.minimum + point.to_double() * step
+      let mut aggregate = 0.0
+      for current_rule in self.rules {
+        match current_rule.consequent {
+          Mamdani(variable_name, set_name) if variable_name == output.name =>
+            match
+              evaluate_antecedent(
+                current_rule.antecedent,
+                self.inputs,
+                values,
+                self.connective,
+              ) {
+              Err(error) => return Err(error)
+              Ok(firing) =>
+                match find_set(output, set_name) {
+                  None => return Err(MissingConsequent(output.name, set_name))
+                  Some(set) => {
+                    let clipped = and_min(
+                      firing * current_rule.weight,
+                      set.membership(x),
+                    )
+                    aggregate = or_max(aggregate, clipped)
+                  }
+                }
+            }
+          _ => ()
+        }
+      }
+      numerator = numerator + x * aggregate
+      denominator = denominator + aggregate
+      point = point + 1
+    }
+    if denominator == 0.0 {
+      return Err(NoFiredRule(output.name))
+    }
+    result.push(numerator / denominator)
+  }
+  Ok(result)
+}
+
+///|
+/// Evaluate a first-order Sugeno system with weighted-average aggregation.
+pub fn System::infer_sugeno(
+  self : System,
+  values : Array[Double],
+) -> Result[Array[Double], FuzzyError] {
+  if values.length() != self.inputs.length() {
+    return Err(InputCount(self.inputs.length(), values.length()))
+  }
+  let result = Array()
+  for output in self.outputs {
+    let mut numerator = 0.0
+    let mut denominator = 0.0
+    for current_rule in self.rules {
+      match current_rule.consequent {
+        SugenoConstant(name, constant) if name == output.name => {
+          let firing = match
+            evaluate_antecedent(
+              current_rule.antecedent,
+              self.inputs,
+              values,
+              self.connective,
+            ) {
+            Err(error) => return Err(error)
+            Ok(grade) => grade * current_rule.weight
+          }
+          numerator = numerator + firing * constant
+          denominator = denominator + firing
+        }
+        SugenoLinear(name, constant, coefficients) if name == output.name => {
+          if coefficients.length() != values.length() {
+            return Err(CoefficientCount(output.name))
+          }
+          let firing = match
+            evaluate_antecedent(
+              current_rule.antecedent,
+              self.inputs,
+              values,
+              self.connective,
+            ) {
+            Err(error) => return Err(error)
+            Ok(grade) => grade * current_rule.weight
+          }
+          let mut consequent_value = constant
+          let mut index = 0
+          while index < values.length() {
+            consequent_value = consequent_value +
+              coefficients[index] * values[index]
+            index = index + 1
+          }
+          numerator = numerator + firing * consequent_value
+          denominator = denominator + firing
+        }
+        _ => ()
+      }
+    }
+    if denominator == 0.0 {
+      return Err(NoFiredRule(output.name))
+    }
+    result.push(numerator / denominator)
+  }
+  Ok(result)
+}
+
+///|
+/// Build an atomic antecedent, matching a named set on a named input.
+pub fn is_set(variable_name : String, set_name : String) -> Antecedent {
+  Is(variable_name, set_name)
+}
+
+///|
+/// Build a conjunction of two fuzzy propositions.
+pub fn both(left : Antecedent, right : Antecedent) -> Antecedent {
+  And(left, right)
+}
+
+///|
+/// Build a disjunction of two fuzzy propositions.
+pub fn either(left : Antecedent, right : Antecedent) -> Antecedent {
+  Or(left, right)
+}
+
+///|
+/// Negate a fuzzy proposition using the standard complement.
+pub fn negate(value : Antecedent) -> Antecedent {
+  Not(value)
+}
+
+///|
+/// Construct a Mamdani fuzzy-set consequent.
+pub fn mamdani(output_name : String, set_name : String) -> Consequent {
+  Mamdani(output_name, set_name)
+}
+
+///|
+/// Construct a zero-order Sugeno constant consequent.
+pub fn sugeno_constant(output_name : String, value : Double) -> Consequent {
+  SugenoConstant(output_name, value)
+}
+
+///|
+/// Construct a first-order Sugeno linear consequent.
+pub fn sugeno_linear(
+  output_name : String,
+  bias : Double,
+  coefficients : Array[Double],
+) -> Consequent {
+  SugenoLinear(output_name, bias, coefficients)
+}
+
+///|
+/// Select minimum-AND with maximum-OR.
+pub fn min_max_connective() -> Connective {
+  Minimum
+}
+
+///|
+/// Select product-AND with probabilistic-sum OR.
+pub fn product_probabilistic_connective() -> Connective {
+  Product
+}
+
+///|
+/// Select maximum-AND with maximum-OR.
+pub fn max_connective() -> Connective {
+  Maximum
+}
+
+///|
+/// Select product-AND with probabilistic-sum OR.
+pub fn probabilistic_connective() -> Connective {
+  ProbabilisticSum
+}

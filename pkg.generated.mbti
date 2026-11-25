@@ -1,0 +1,121 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Cx330cnn/moonfuzzy"
+
+// Values
+pub fn and_min(Double, Double) -> Double
+
+pub fn and_product(Double, Double) -> Double
+
+pub fn both(Antecedent, Antecedent) -> Antecedent
+
+pub fn either(Antecedent, Antecedent) -> Antecedent
+
+pub fn is_set(String, String) -> Antecedent
+
+pub fn mamdani(String, String) -> Consequent
+
+pub fn max_connective() -> Connective
+
+pub fn min_max_connective() -> Connective
+
+pub fn negate(Antecedent) -> Antecedent
+
+pub fn or_max(Double, Double) -> Double
+
+pub fn or_probabilistic(Double, Double) -> Double
+
+pub fn probabilistic_connective() -> Connective
+
+pub fn product_probabilistic_connective() -> Connective
+
+pub fn rule(Antecedent, Consequent, Double) -> Result[Rule, FuzzyError]
+
+pub fn singleton(String, Double) -> Result[FuzzySet, FuzzyError]
+
+pub fn sugeno_constant(String, Double) -> Consequent
+
+pub fn sugeno_linear(String, Double, Array[Double]) -> Consequent
+
+pub fn system(Array[LinguisticVariable], Array[LinguisticVariable], Array[Rule], Connective) -> Result[System, FuzzyError]
+
+pub fn trapezoid(String, Double, Double, Double, Double) -> Result[FuzzySet, FuzzyError]
+
+pub fn triangle(String, Double, Double, Double) -> Result[FuzzySet, FuzzyError]
+
+pub fn variable(String, Double, Double, Array[FuzzySet]) -> Result[LinguisticVariable, FuzzyError]
+
+// Errors
+
+// Types and methods
+pub enum Antecedent {
+  Is(String, String)
+  And(Antecedent, Antecedent)
+  Or(Antecedent, Antecedent)
+  Not(Antecedent)
+}
+
+pub enum Connective {
+  Minimum
+  Product
+  Maximum
+  ProbabilisticSum
+}
+
+pub enum Consequent {
+  Mamdani(String, String)
+  SugenoConstant(String, Double)
+  SugenoLinear(String, Double, Array[Double])
+}
+
+pub enum FuzzyError {
+  EmptyName
+  InvalidShape
+  EmptyDomain
+  MissingInput(String)
+  MissingSet(String, String)
+  InputCount(Int, Int)
+  MissingConsequent(String, String)
+  NoFiredRule(String)
+  CoefficientCount(String)
+  EmptyRuleBase
+  InvalidResolution
+  InvalidWeight
+}
+
+pub struct FuzzySet {
+  name : String
+  shape : MembershipShape
+}
+pub fn FuzzySet::membership(Self, Double) -> Double
+
+pub struct LinguisticVariable {
+  name : String
+  minimum : Double
+  maximum : Double
+  sets : Array[FuzzySet]
+}
+
+pub enum MembershipShape {
+  Triangle(Double, Double, Double)
+  Trapezoid(Double, Double, Double, Double)
+  Singleton(Double)
+}
+
+pub struct Rule {
+  antecedent : Antecedent
+  consequent : Consequent
+  weight : Double
+}
+
+pub struct System {
+  inputs : Array[LinguisticVariable]
+  outputs : Array[LinguisticVariable]
+  rules : Array[Rule]
+  connective : Connective
+}
+pub fn System::infer_mamdani(Self, Array[Double], Int) -> Result[Array[Double], FuzzyError]
+pub fn System::infer_sugeno(Self, Array[Double]) -> Result[Array[Double], FuzzyError]
+
+// Type aliases
+
+// Traits
