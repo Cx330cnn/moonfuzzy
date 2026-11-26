@@ -1571,3 +1571,44 @@ pub fn System::validate_input(
   }
   Ok(())
 }
+
+///|
+/// Interpolate a sampled membership grade, returning None outside its axis.
+pub fn SampledCurve::membership_at(
+  self : SampledCurve,
+  value : Double,
+) -> Result[Double?, SampleError] {
+  if self.axis.length() != self.grades.length() {
+    return Err(SampleCountMismatch)
+  }
+  if self.axis.length() < 2 {
+    return Err(TooFewSamples)
+  }
+  if value < self.axis[0] || value > self.axis[self.axis.length() - 1] {
+    return Ok(None)
+  }
+  let mut index = 1
+  while index < self.axis.length() {
+    if self.axis[index] <= self.axis[index - 1] {
+      return Err(NonIncreasingAxis)
+    }
+    if self.grades[index - 1] < 0.0 ||
+      self.grades[index - 1] > 1.0 ||
+      self.grades[index] < 0.0 ||
+      self.grades[index] > 1.0 {
+      return Err(GradeOutOfRange)
+    }
+    if value <= self.axis[index] {
+      let ratio = (value - self.axis[index - 1]) /
+        (self.axis[index] - self.axis[index - 1])
+      return Ok(
+        Some(
+          self.grades[index - 1] +
+          ratio * (self.grades[index] - self.grades[index - 1]),
+        ),
+      )
+    }
+    index = index + 1
+  }
+  Ok(Some(self.grades[self.grades.length() - 1]))
+}

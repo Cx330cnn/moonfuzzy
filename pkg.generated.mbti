@@ -218,6 +218,7 @@ pub struct SampledCurve {
 }
 pub fn SampledCurve::alpha_cut(Self, Double) -> Result[(Double, Double)?, SampleError]
 pub fn SampledCurve::area(Self) -> Result[Double, SampleError]
+pub fn SampledCurve::membership_at(Self, Double) -> Result[Double?, SampleError]
 
 pub struct SugenoContribution {
   rule_index : Int32

@@ -738,3 +738,14 @@ test "Mamdani batch inference equals ordered individual evaluations" {
     }
   }
 }
+
+///|
+test "sampled curve interpolation preserves knots and rejects bad axes" {
+  let curve = { axis: [0.0, 2.0, 4.0], grades: [0.0, 1.0, 0.0], }
+  assert_true(curve.membership_at(-1.0) is Ok(None))
+  assert_true(curve.membership_at(2.0) is Ok(Some(1.0)))
+  assert_true(curve.membership_at(1.0) is Ok(Some(0.5)))
+  assert_true(curve.membership_at(5.0) is Ok(None))
+  let invalid = { axis: [0.0, 0.0], grades: [0.0, 1.0], }
+  assert_true(invalid.membership_at(0.0) is Err(NonIncreasingAxis))
+}
