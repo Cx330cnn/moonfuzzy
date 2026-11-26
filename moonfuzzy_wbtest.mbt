@@ -749,3 +749,41 @@ test "sampled curve interpolation preserves knots and rejects bad axes" {
   let invalid = { axis: [0.0, 0.0], grades: [0.0, 1.0], }
   assert_true(invalid.membership_at(0.0) is Err(NonIncreasingAxis))
 }
+
+///|
+test "empty batch requests return empty ordered result collections" {
+  let input_set = match triangle("active", 0.0, 1.0, 2.0) {
+    Ok(value) => value
+    Err(_) => abort("input set")
+  }
+  let output_set = match triangle("center", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("output set")
+  }
+  let input = match variable("x", 0.0, 2.0, [input_set]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("y", 0.0, 10.0, [output_set]) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let current_rule = match
+    rule(is_set("x", "active"), mamdani("y", "center"), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  let model = match
+    system([input], [output], [current_rule], min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("system")
+  }
+  match model.infer_sugeno_batch([]) {
+    Err(_) => abort("empty Sugeno batch")
+    Ok(results) => assert_eq(results.length(), 0)
+  }
+  match model.infer_mamdani_batch([], 31) {
+    Err(_) => abort("empty Mamdani batch")
+    Ok(results) => assert_eq(results.length(), 0)
+  }
+}
