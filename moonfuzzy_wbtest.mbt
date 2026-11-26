@@ -695,3 +695,46 @@ test "system input validation reports dimensional and domain errors" {
   assert_true(model.validate_input([]) is Err(InputCount(1, 0)))
   assert_true(model.validate_input([10.1]) is Err(ValueOutsideDomain("sensor")))
 }
+
+///|
+test "Mamdani batch inference equals ordered individual evaluations" {
+  let antecedent = match triangle("active", 0.0, 1.0, 2.0) {
+    Ok(value) => value
+    Err(_) => abort("antecedent")
+  }
+  let consequent = match triangle("center", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("consequent")
+  }
+  let input = match variable("x", 0.0, 2.0, [antecedent]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("y", 0.0, 10.0, [consequent]) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let current_rule = match
+    rule(is_set("x", "active"), mamdani("y", "center"), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  let model = match
+    system([input], [output], [current_rule], min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("system")
+  }
+  let samples = [[0.5], [1.0], [1.5]]
+  match model.infer_mamdani_batch(samples, 101) {
+    Err(_) => abort("batch")
+    Ok(batch) => {
+      assert_eq(batch.length(), 3)
+      for index in 0..<3 {
+        match model.infer_mamdani(samples[index], 101) {
+          Err(_) => abort("single")
+          Ok(single) => assert_eq(batch[index], single)
+        }
+      }
+    }
+  }
+}
