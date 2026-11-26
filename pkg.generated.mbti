@@ -240,6 +240,7 @@ pub fn System::infer_mamdani_with(Self, Array[Double], Int32, Implication, Aggre
 pub fn System::infer_sugeno(Self, Array[Double]) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_sugeno_batch(Self, Array[Array[Double]]) -> Result[Array[Array[Double]], FuzzyError]
 pub fn System::sugeno_contributions(Self, String, Array[Double]) -> Result[Array[SugenoContribution], FuzzyError]
+pub fn System::validate_input(Self, Array[Double]) -> Result[Unit, FuzzyError]
 
 // Type aliases
 

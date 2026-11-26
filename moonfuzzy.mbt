@@ -1551,3 +1551,23 @@ pub fn LinguisticVariable::denormalize(
   }
   Ok(self.minimum + normalized * (self.maximum - self.minimum))
 }
+
+///|
+/// Verify input count and that each crisp value lies within its declared domain.
+pub fn System::validate_input(
+  self : System,
+  values : Array[Double],
+) -> Result[Unit, FuzzyError] {
+  if values.length() != self.inputs.length() {
+    return Err(InputCount(self.inputs.length(), values.length()))
+  }
+  let mut index = 0
+  while index < values.length() {
+    let variable = self.inputs[index]
+    if values[index] < variable.minimum || values[index] > variable.maximum {
+      return Err(ValueOutsideDomain(variable.name))
+    }
+    index = index + 1
+  }
+  Ok(())
+}

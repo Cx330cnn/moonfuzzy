@@ -666,3 +666,32 @@ test "symmetric Gaussian is reflection invariant and sigmoid is monotone" {
     point = point + 1
   }
 }
+
+///|
+test "system input validation reports dimensional and domain errors" {
+  let set = match triangle("all", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("set")
+  }
+  let input = match variable("sensor", 0.0, 10.0, [set]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("command", 0.0, 1.0, []) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let current_rule = match
+    rule(is_set("sensor", "all"), sugeno_constant("command", 0.5), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  let model = match
+    system([input], [output], [current_rule], min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("system")
+  }
+  assert_true(model.validate_input([5.0]) is Ok(()))
+  assert_true(model.validate_input([]) is Err(InputCount(1, 0)))
+  assert_true(model.validate_input([10.1]) is Err(ValueOutsideDomain("sensor")))
+}
