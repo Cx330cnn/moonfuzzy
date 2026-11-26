@@ -787,3 +787,71 @@ test "empty batch requests return empty ordered result collections" {
     Ok(results) => assert_eq(results.length(), 0)
   }
 }
+
+///|
+test "maximum connective uses maximum for AND and OR" {
+  assert_eq(combine_grade(0.2, 0.8, max_connective(), true), 0.8)
+  assert_eq(combine_grade(0.2, 0.8, max_connective(), false), 0.8)
+}
+
+///|
+test "probabilistic connective aliases product probabilistic sum" {
+  assert_true(probabilistic_connective() is Product)
+  assert_true(
+    combine_grade(0.2, 0.8, probabilistic_connective(), true) > 0.159 &&
+    combine_grade(0.2, 0.8, probabilistic_connective(), true) < 0.161,
+  )
+  assert_eq(combine_grade(0.2, 0.8, probabilistic_connective(), false), 0.84)
+}
+
+///|
+test "mamdani trace exposes aligned rule curves and aggregate result" {
+  let active = match triangle("active", 0.0, 1.0, 2.0) {
+    Ok(value) => value
+    Err(_) => abort("active")
+  }
+  let output_set = match triangle("center", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("center")
+  }
+  let input = match variable("signal", 0.0, 2.0, [active]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("level", 0.0, 10.0, [output_set]) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let current_rule = match
+    rule(is_set("signal", "active"), mamdani("level", "center"), 0.5) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  let model = match
+    system([input], [output], [current_rule], min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("system")
+  }
+  let trace = match
+    model.infer_mamdani_trace(
+      [1.0],
+      21,
+      minimum_implication(),
+      maximum_aggregation(),
+      SampledCentroid,
+    ) {
+    Ok(value) => value
+    Err(_) => abort("trace")
+  }
+  assert_eq(trace.outputs.length(), 1)
+  assert_eq(trace.contributions.length(), 1)
+  assert_eq(trace.outputs[0].axis.length(), 21)
+  assert_eq(trace.contributions[0].rule_index, 0)
+  assert_eq(trace.contributions[0].firing_strength, 0.5)
+  assert_eq(trace.outputs[0].aggregate_grades[10], 0.5)
+  let plain = match model.infer_mamdani([1.0], 21) {
+    Ok(values) => values[0]
+    Err(_) => abort("plain inference")
+  }
+  assert_eq(trace.outputs[0].crisp_value, plain)
+}

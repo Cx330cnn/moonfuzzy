@@ -97,7 +97,6 @@ pub enum Connective {
   Minimum
   Product
   Maximum
-  ProbabilisticSum
 }
 
 pub enum Consequent {
@@ -182,6 +181,24 @@ pub fn LinguisticVariable::maximizers(Self, Double) -> Array[String]
 pub fn LinguisticVariable::normalize(Self, Double) -> Result[Double, FuzzyError]
 pub fn LinguisticVariable::partition_gaps(Self, Int32, Double) -> Result[Array[CoverageGap], FuzzyError]
 
+pub struct MamdaniInferenceTrace {
+  outputs : Array[MamdaniOutputTrace]
+  contributions : Array[MamdaniRuleContribution]
+}
+
+pub struct MamdaniOutputTrace {
+  output_name : String
+  axis : Array[Double]
+  aggregate_grades : Array[Double]
+  crisp_value : Double
+}
+
+pub struct MamdaniRuleContribution {
+  rule_index : Int32
+  firing_strength : Double
+  implied_grades : Array[Double]
+}
+
 pub enum MembershipShape {
   Triangle(Double, Double, Double)
   Trapezoid(Double, Double, Double, Double)
@@ -237,6 +254,7 @@ pub fn System::activations(Self, Array[Double]) -> Result[Array[RuleActivation],
 pub fn System::coverage(Self, Array[Array[Double]], Double) -> Result[CoverageReport, CoverageError]
 pub fn System::infer_mamdani(Self, Array[Double], Int32) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_mamdani_batch(Self, Array[Array[Double]], Int32) -> Result[Array[Array[Double]], FuzzyError]
+pub fn System::infer_mamdani_trace(Self, Array[Double], Int32, Implication, Aggregation, Defuzzification) -> Result[MamdaniInferenceTrace, FuzzyError]
 pub fn System::infer_mamdani_with(Self, Array[Double], Int32, Implication, Aggregation, Defuzzification) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_sugeno(Self, Array[Double]) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_sugeno_batch(Self, Array[Array[Double]]) -> Result[Array[Array[Double]], FuzzyError]

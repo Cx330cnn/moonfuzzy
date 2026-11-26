@@ -202,7 +202,6 @@ pub enum Connective {
   Minimum
   Product
   Maximum
-  ProbabilisticSum
 }
 
 ///|
@@ -368,13 +367,7 @@ fn combine_grade(
   match connective {
     Minimum => if is_and { and_min(a, b) } else { or_max(a, b) }
     Product => if is_and { and_product(a, b) } else { or_probabilistic(a, b) }
-    Maximum => if is_and { and_min(a, b) } else { or_max(a, b) }
-    ProbabilisticSum =>
-      if is_and {
-        and_product(a, b)
-      } else {
-        or_probabilistic(a, b)
-      }
+    Maximum => or_max(a, b)
   }
 }
 
@@ -462,6 +455,123 @@ pub fn System::infer_mamdani_with(
     }
   }
   Ok(results)
+}
+
+///|
+/// A rule's sampled contribution to a named Mamdani output.
+pub struct MamdaniRuleContribution {
+  rule_index : Int32
+  firing_strength : Double
+  implied_grades : Array[Double]
+}
+
+///|
+/// The aggregated sampled output and crisp result for one Mamdani variable.
+pub struct MamdaniOutputTrace {
+  output_name : String
+  axis : Array[Double]
+  aggregate_grades : Array[Double]
+  crisp_value : Double
+}
+
+///|
+/// A diagnostic record containing output curves and per-rule contributions.
+pub struct MamdaniInferenceTrace {
+  outputs : Array[MamdaniOutputTrace]
+  contributions : Array[MamdaniRuleContribution]
+}
+
+///|
+/// Evaluate Mamdani inference and retain sampled contributions for inspection.
+/// Each contribution's grades align with its output trace's axis. Contributions
+/// are emitted in output order, then in the original rule order.
+pub fn System::infer_mamdani_trace(
+  self : System,
+  values : Array[Double],
+  resolution : Int32,
+  implication : Implication,
+  aggregation : Aggregation,
+  defuzzification : Defuzzification,
+) -> Result[MamdaniInferenceTrace, FuzzyError] {
+  if values.length() != self.inputs.length() {
+    return Err(InputCount(self.inputs.length(), values.length()))
+  }
+  if resolution < 2 {
+    return Err(InvalidResolution)
+  }
+  let activations = match self.activations(values) {
+    Err(error) => return Err(error)
+    Ok(result) => result
+  }
+  let outputs = Array()
+  let contributions = Array()
+  for output in self.outputs {
+    let axis = Array()
+    let aggregate_grades = Array()
+    let per_rule = Array()
+    let step = (output.maximum - output.minimum) / (resolution - 1).to_double()
+    let mut rule_index = 0
+    while rule_index < self.rules.length() {
+      let current_rule = self.rules[rule_index]
+      match current_rule.consequent {
+        Mamdani(output_name, set_name) if output_name == output.name => {
+          let set = match find_set(output, set_name) {
+            None => return Err(MissingConsequent(output.name, set_name))
+            Some(found) => found
+          }
+          let grades = Array()
+          let firing = activations[rule_index].weighted_grade
+          let mut point = 0
+          while point < resolution {
+            let x = output.minimum + point.to_double() * step
+            let membership = set.membership(x)
+            let implied = match implication {
+              MinimumImplication => and_min(firing, membership)
+              ProductImplication => firing * membership
+            }
+            grades.push(implied)
+            point = point + 1
+          }
+          per_rule.push({
+            rule_index,
+            firing_strength: firing,
+            implied_grades: grades,
+          })
+        }
+        _ => ()
+      }
+      rule_index = rule_index + 1
+    }
+    let mut point = 0
+    while point < resolution {
+      axis.push(output.minimum + point.to_double() * step)
+      let mut aggregate_grade = 0.0
+      for contribution in per_rule {
+        let grade = contribution.implied_grades[point]
+        aggregate_grade = match aggregation {
+          MaximumAggregation => or_max(aggregate_grade, grade)
+          ProbabilisticAggregation => or_probabilistic(aggregate_grade, grade)
+        }
+      }
+      aggregate_grades.push(aggregate_grade)
+      point = point + 1
+    }
+    match defuzzify(axis, aggregate_grades, defuzzification) {
+      Err(_) => return Err(NoFiredRule(output.name))
+      Ok(crisp_value) => {
+        for contribution in per_rule {
+          contributions.push(contribution)
+        }
+        outputs.push({
+          output_name: output.name,
+          axis,
+          aggregate_grades,
+          crisp_value,
+        })
+      }
+    }
+  }
+  Ok({ outputs, contributions, })
 }
 
 ///|
@@ -587,15 +697,16 @@ pub fn product_probabilistic_connective() -> Connective {
 }
 
 ///|
-/// Select maximum-AND with maximum-OR.
+/// Select maximum for both AND and OR. This is a nonstandard connective,
+/// not a t-norm: use it only when the model intentionally wants max-max.
 pub fn max_connective() -> Connective {
   Maximum
 }
 
 ///|
-/// Select product-AND with probabilistic-sum OR.
+/// Alias for product-AND with probabilistic-sum OR.
 pub fn probabilistic_connective() -> Connective {
-  ProbabilisticSum
+  Product
 }
 
 ///|
