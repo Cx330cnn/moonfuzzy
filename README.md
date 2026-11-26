@@ -2,7 +2,7 @@
 
 MoonFuzzy 是面向 MoonBit 的模糊推理库原型：把连续数值、语言变量、隶属集合与 IF–THEN 规则组合起来，计算 Mamdani 或 Sugeno 输出。它处理的是模糊逻辑控制，不是 fuzzy string matching（文本模糊搜索）。
 
-> **交付状态（2026-11-26）：**项目尚未发布；没有可安装的公开版本、GitHub CI 结果、GitHub Release 或 MoonCakes 版本。`Cx330cnn/moonfuzzy` 是预期命名空间，不表示仓库已创建。当前本地工具链已通过 WASM 目标检查/测试与示例运行。
+> **交付状态（2026-11-26）：**GitHub 公开仓库已建立，主分支提交 `ed111c4e947a844fc9139c8771d778365a27bc2c` 的 MoonBit CI 已通过（检查、WASM 测试与下游示例）。GitHub Release 和 MoonCakes 首发版本仍待发布，因此当前还不能安装公开包。
 
 ## 适用场景与用户
 
@@ -40,7 +40,7 @@ moon run --target wasm cmd/main
 
 ## 下游接入（发布后使用）
 
-模块名为 `Cx330cnn/moonfuzzy`，预定首发版本为 `0.1.0`。该版本在公开验证完成前不可安装。发布后，在消费者的 `moon.mod` 中固定版本：
+模块名为 `Cx330cnn/moonfuzzy`，拟发布版本为 `0.1.0`。**Release 和 MoonCakes 发布与消费者验证完成前不可安装。**发布后可运行 `moon add Cx330cnn/moonfuzzy@0.1.0`，或在消费者的 `moon.mod` 中固定版本：
 
 ```moonbit
 import {
@@ -56,16 +56,46 @@ import {
 }
 ```
 
-最小建模流程如下；各构造器通过 `Result` 返回校验错误：
+最小建模流程（省略包级导入，完整文件可直接参考下方示例）：
 
 ```moonbit
-let low = @fuzzy.triangle("low", 0.0, 0.0, 10.0)
-let high = @fuzzy.triangle("high", 0.0, 10.0, 10.0)
-// 创建 LinguisticVariable、规则和 System 后：
-let result = controller.infer_sugeno([5.0])
+fn main {
+  let low = match @fuzzy.triangle("low", 0.0, 0.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("could not construct low set")
+  }
+  let high = match @fuzzy.triangle("high", 0.0, 10.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("could not construct high set")
+  }
+  let temperature = match @fuzzy.variable("temperature", 0.0, 10.0, [low, high]) {
+    Ok(value) => value
+    Err(_) => abort("could not construct input")
+  }
+  let fan = match @fuzzy.variable("fan", 0.0, 100.0, []) {
+    Ok(value) => value
+    Err(_) => abort("could not construct output")
+  }
+  let cool = match @fuzzy.rule(@fuzzy.is_set("temperature", "low"), @fuzzy.sugeno_constant("fan", 20.0), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("could not construct rule")
+  }
+  let warm = match @fuzzy.rule(@fuzzy.is_set("temperature", "high"), @fuzzy.sugeno_constant("fan", 80.0), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("could not construct rule")
+  }
+  let controller = match @fuzzy.system([temperature], [fan], [cool, warm], @fuzzy.min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("could not construct controller")
+  }
+  match controller.infer_sugeno([5.0]) {
+    Err(_) => abort("inference failed")
+    Ok(outputs) => println(outputs[0].to_string())
+  }
+}
 ```
 
-可运行的完整控制器构造示例位于 [`cmd/main/main.mbt`](cmd/main/main.mbt)，其输出是 `Fan command at temperature 5: 50`。该快速片段只展示 API 形状；请以完整示例处理每个构造器的 `Result`。安装验证会在发布后由无凭据新消费者按此精确版本执行。
+它输出 `50`。完整源代码（含包配置）位于 [`cmd/main/main.mbt`](cmd/main/main.mbt) 与 [`cmd/main/moon.pkg`](cmd/main/moon.pkg)。该示例会在 CI 中通过 `moon run --target wasm cmd/main` 执行。
 
 ## 限制与非目标
 
