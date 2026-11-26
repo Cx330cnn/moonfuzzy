@@ -531,3 +531,89 @@ test "partition diagnostics locate low-membership gaps" {
   assert_true(variable.partition_gaps(1, 0.1) is Err(InvalidResolution))
   assert_true(variable.partition_gaps(11, 0.0) is Err(InvalidShape))
 }
+
+///|
+test "analytic alpha cuts are clipped and shape-aware" {
+  let triangle_set = match triangle("t", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("triangle")
+  }
+  assert_true(triangle_set.alpha_cut(0.5, 2.0, 8.0) is Ok(Some((2.5, 7.5))))
+  let bell = match gaussian("g", 5.0, 2.0) {
+    Ok(value) => value
+    Err(_) => abort("gaussian")
+  }
+  assert_true(bell.alpha_cut(1.0, 0.0, 10.0) is Ok(Some((5.0, 5.0))))
+  let rising = match sigmoid("s", 1.0, 5.0) {
+    Ok(value) => value
+    Err(_) => abort("sigmoid")
+  }
+  assert_true(rising.alpha_cut(0.5, 0.0, 10.0) is Ok(Some((5.0, 10.0))))
+  assert_true(rising.alpha_cut(1.0, 0.0, 10.0) is Ok(None))
+  assert_true(rising.alpha_cut(0.0, 0.0, 10.0) is Err(InvalidShape))
+}
+
+///|
+test "batch membership keeps input and label order" {
+  let low = match triangle("low", 0.0, 0.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("low")
+  }
+  let high = match triangle("high", 0.0, 10.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("high")
+  }
+  assert_eq(low.membership_many([0.0, 5.0, 10.0]), [1.0, 0.5, 0.0])
+  let input = match variable("x", 0.0, 10.0, [low, high]) {
+    Ok(value) => value
+    Err(_) => abort("variable")
+  }
+  assert_eq(input.fuzzify_many([0.0, 5.0, 10.0]), [
+    [1.0, 0.0],
+    [0.5, 0.5],
+    [0.0, 1.0],
+  ])
+}
+
+///|
+test "batch inference preserves sample order and stops on invalid shape" {
+  let set = match triangle("all", 0.0, 5.0, 10.0) {
+    Ok(value) => value
+    Err(_) => abort("set")
+  }
+  let input = match variable("x", 0.0, 10.0, [set]) {
+    Ok(value) => value
+    Err(_) => abort("input")
+  }
+  let output = match variable("y", 0.0, 1.0, []) {
+    Ok(value) => value
+    Err(_) => abort("output")
+  }
+  let current_rule = match
+    rule(is_set("x", "all"), sugeno_constant("y", 7.0), 1.0) {
+    Ok(value) => value
+    Err(_) => abort("rule")
+  }
+  let model = match
+    system([input], [output], [current_rule], min_max_connective()) {
+    Ok(value) => value
+    Err(_) => abort("system")
+  }
+  match model.infer_sugeno_batch([[1.0], [5.0], [9.0]]) {
+    Err(_) => abort("batch")
+    Ok(values) => assert_eq(values, [[7.0], [7.0], [7.0]])
+  }
+  assert_true(model.infer_sugeno_batch([[1.0], []]) is Err(InputCount(1, 0)))
+}
+
+///|
+test "linguistic variable normalization round trips and checks bounds" {
+  let input = match variable("temperature", -40.0, 60.0, []) {
+    Ok(value) => value
+    Err(_) => abort("variable")
+  }
+  assert_true(input.normalize(10.0) is Ok(0.5))
+  assert_true(input.denormalize(0.5) is Ok(10.0))
+  assert_true(input.normalize(61.0) is Err(ValueOutsideDomain("temperature")))
+  assert_true(input.denormalize(-0.1) is Err(ValueOutsideUnitInterval))
+}

@@ -38,6 +38,8 @@ pub enum FuzzyError {
   NoMembershipArea
   NoLinguisticLabels(String)
   NoLabelMatches(String)
+  ValueOutsideDomain(String)
+  ValueOutsideUnitInterval
 }
 
 ///|
@@ -1403,4 +1405,149 @@ pub fn LinguisticVariable::partition_gaps(
     gaps.push({ start: gap_start, end: self.maximum, sample_count: gap_length, })
   }
   Ok(gaps)
+}
+
+///|
+/// Compute a closed-form alpha-cut, clipped to caller-supplied domain bounds.
+/// Alpha must be in (0, 1]; the interval is None if the set does not meet it.
+pub fn FuzzySet::alpha_cut(
+  self : FuzzySet,
+  alpha : Double,
+  minimum : Double,
+  maximum : Double,
+) -> Result[(Double, Double)?, FuzzyError] {
+  if alpha <= 0.0 || alpha > 1.0 {
+    return Err(InvalidShape)
+  }
+  if minimum >= maximum {
+    return Err(EmptyDomain)
+  }
+  let interval = match self.shape {
+    Triangle(left, peak, right) =>
+      Some((left + alpha * (peak - left), right - alpha * (right - peak)))
+    Trapezoid(left, shoulder_left, shoulder_right, right) =>
+      Some(
+        (
+          left + alpha * (shoulder_left - left),
+          right - alpha * (right - shoulder_right),
+        ),
+      )
+    Singleton(value) => if alpha <= 1.0 { Some((value, value)) } else { None }
+    Gaussian(center, spread) => {
+      let radius = spread * @math.pow(-2.0 * @math.ln(alpha), 0.5)
+      Some((center - radius, center + radius))
+    }
+    Sigmoid(slope, center) =>
+      if alpha == 1.0 {
+        None
+      } else {
+        let crossing = center - @math.ln(1.0 / alpha - 1.0) / slope
+        if slope > 0.0 {
+          Some((crossing, maximum))
+        } else {
+          Some((minimum, crossing))
+        }
+      }
+    LeftShoulder(plateau_end, zero_start) =>
+      Some((minimum, zero_start - alpha * (zero_start - plateau_end)))
+    RightShoulder(zero_end, plateau_start) =>
+      Some((zero_end + alpha * (plateau_start - zero_end), maximum))
+  }
+  match interval {
+    None => Ok(None)
+    Some((start, end)) => {
+      let clipped_start = if start < minimum { minimum } else { start }
+      let clipped_end = if end > maximum { maximum } else { end }
+      if clipped_start > maximum ||
+        clipped_end < minimum ||
+        clipped_start > clipped_end {
+        Ok(None)
+      } else {
+        Ok(Some((clipped_start, clipped_end)))
+      }
+    }
+  }
+}
+
+///|
+/// Evaluate one set for an ordered slice of crisp values.
+pub fn FuzzySet::membership_many(
+  self : FuzzySet,
+  values : Array[Double],
+) -> Array[Double] {
+  let grades = Array()
+  for value in values {
+    grades.push(self.membership(value))
+  }
+  grades
+}
+
+///|
+/// Fuzzify an ordered batch while preserving the variable's set ordering.
+pub fn LinguisticVariable::fuzzify_many(
+  self : LinguisticVariable,
+  values : Array[Double],
+) -> Array[Array[Double]] {
+  let matrix = Array()
+  for value in values {
+    matrix.push(self.fuzzify(value))
+  }
+  matrix
+}
+
+///|
+/// Evaluate a batch of independent input vectors with the Sugeno engine.
+pub fn System::infer_sugeno_batch(
+  self : System,
+  samples : Array[Array[Double]],
+) -> Result[Array[Array[Double]], FuzzyError] {
+  let outputs = Array()
+  for sample in samples {
+    match self.infer_sugeno(sample) {
+      Err(error) => return Err(error)
+      Ok(values) => outputs.push(values)
+    }
+  }
+  Ok(outputs)
+}
+
+///|
+/// Evaluate a batch of independent input vectors with configured Mamdani inference.
+pub fn System::infer_mamdani_batch(
+  self : System,
+  samples : Array[Array[Double]],
+  resolution : Int32,
+) -> Result[Array[Array[Double]], FuzzyError] {
+  let outputs = Array()
+  for sample in samples {
+    match self.infer_mamdani(sample, resolution) {
+      Err(error) => return Err(error)
+      Ok(values) => outputs.push(values)
+    }
+  }
+  Ok(outputs)
+}
+
+///|
+/// Map a crisp domain value linearly to the unit interval without clamping.
+pub fn LinguisticVariable::normalize(
+  self : LinguisticVariable,
+  value : Double,
+) -> Result[Double, FuzzyError] {
+  if value < self.minimum || value > self.maximum {
+    return Err(ValueOutsideDomain(self.name))
+  }
+  Ok((value - self.minimum) / (self.maximum - self.minimum))
+}
+
+///|
+/// Map a unit-interval value linearly into this variable's crisp domain.
+pub fn LinguisticVariable::denormalize(
+  self : LinguisticVariable,
+  normalized : Double,
+) -> Result[Double, FuzzyError] {
+  if normalized < 0.0 || normalized > 1.0 {
+    return Err(ValueOutsideUnitInterval)
+  }
+  Ok(self.minimum + normalized * (self.maximum - self.minimum))
 }

@@ -151,13 +151,17 @@ pub enum FuzzyError {
   NoMembershipArea
   NoLinguisticLabels(String)
   NoLabelMatches(String)
+  ValueOutsideDomain(String)
+  ValueOutsideUnitInterval
 }
 
 pub struct FuzzySet {
   name : String
   shape : MembershipShape
 }
+pub fn FuzzySet::alpha_cut(Self, Double, Double, Double) -> Result[(Double, Double)?, FuzzyError]
 pub fn FuzzySet::membership(Self, Double) -> Double
+pub fn FuzzySet::membership_many(Self, Array[Double]) -> Array[Double]
 
 pub enum Implication {
   MinimumImplication
@@ -171,8 +175,11 @@ pub struct LinguisticVariable {
   sets : Array[FuzzySet]
 }
 pub fn LinguisticVariable::classify(Self, Double) -> Result[Classification, FuzzyError]
+pub fn LinguisticVariable::denormalize(Self, Double) -> Result[Double, FuzzyError]
 pub fn LinguisticVariable::fuzzify(Self, Double) -> Array[Double]
+pub fn LinguisticVariable::fuzzify_many(Self, Array[Double]) -> Array[Array[Double]]
 pub fn LinguisticVariable::maximizers(Self, Double) -> Array[String]
+pub fn LinguisticVariable::normalize(Self, Double) -> Result[Double, FuzzyError]
 pub fn LinguisticVariable::partition_gaps(Self, Int32, Double) -> Result[Array[CoverageGap], FuzzyError]
 
 pub enum MembershipShape {
@@ -228,8 +235,10 @@ pub struct System {
 pub fn System::activations(Self, Array[Double]) -> Result[Array[RuleActivation], FuzzyError]
 pub fn System::coverage(Self, Array[Array[Double]], Double) -> Result[CoverageReport, CoverageError]
 pub fn System::infer_mamdani(Self, Array[Double], Int32) -> Result[Array[Double], FuzzyError]
+pub fn System::infer_mamdani_batch(Self, Array[Array[Double]], Int32) -> Result[Array[Array[Double]], FuzzyError]
 pub fn System::infer_mamdani_with(Self, Array[Double], Int32, Implication, Aggregation, Defuzzification) -> Result[Array[Double], FuzzyError]
 pub fn System::infer_sugeno(Self, Array[Double]) -> Result[Array[Double], FuzzyError]
+pub fn System::infer_sugeno_batch(Self, Array[Array[Double]]) -> Result[Array[Array[Double]], FuzzyError]
 pub fn System::sugeno_contributions(Self, String, Array[Double]) -> Result[Array[SugenoContribution], FuzzyError]
 
 // Type aliases
