@@ -1,0 +1,34 @@
+name: MoonBit checks
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+      - name: Install MoonBit toolchain
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - name: Report toolchain
+        run: moon version --all
+      - name: Resolve dependencies
+        run: moon update
+      - name: Check formatting
+        run: moon fmt --check
+      - name: Type check
+        run: moon check --target wasm --deny-warn
+      - name: Run tests
+        run: moon test --target wasm --deny-warn
+      - name: Run downstream example
+        run: moon run --target wasm cmd/main
