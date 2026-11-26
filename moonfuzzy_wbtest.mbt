@@ -691,7 +691,7 @@ test "system input validation reports dimensional and domain errors" {
     Ok(value) => value
     Err(_) => abort("system")
   }
-  assert_true(model.validate_input([5.0]) is Ok(()))
+  assert_true(model.validate_input([5.0]) is Ok(_))
   assert_true(model.validate_input([]) is Err(InputCount(1, 0)))
   assert_true(model.validate_input([10.1]) is Err(ValueOutsideDomain("sensor")))
 }
