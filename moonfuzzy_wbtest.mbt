@@ -617,3 +617,52 @@ test "linguistic variable normalization round trips and checks bounds" {
   assert_true(input.normalize(61.0) is Err(ValueOutsideDomain("temperature")))
   assert_true(input.denormalize(-0.1) is Err(ValueOutsideUnitInterval))
 }
+
+///|
+test "membership grades remain bounded across representative domains" {
+  let shapes = [
+    triangle("triangle", -5.0, 0.0, 5.0),
+    trapezoid("trapezoid", -6.0, -2.0, 2.0, 6.0),
+    gaussian("gaussian", 0.0, 2.0),
+    sigmoid("sigmoid", 1.5, 0.0),
+    left_shoulder("left", -2.0, 3.0),
+    right_shoulder("right", -3.0, 2.0),
+  ]
+  for candidate in shapes {
+    match candidate {
+      Err(_) => abort("shape construction")
+      Ok(set) => {
+        let mut point = -20
+        while point <= 20 {
+          let grade = set.membership(point.to_double() / 2.0)
+          assert_true(grade >= 0.0 && grade <= 1.0)
+          point = point + 1
+        }
+      }
+    }
+  }
+}
+
+///|
+test "symmetric Gaussian is reflection invariant and sigmoid is monotone" {
+  let bell = match gaussian("bell", 3.0, 1.7) {
+    Ok(value) => value
+    Err(_) => abort("gaussian")
+  }
+  let rising = match sigmoid("rise", 0.8, 3.0) {
+    Ok(value) => value
+    Err(_) => abort("sigmoid")
+  }
+  let mut point = -5
+  while point <= 5 {
+    let offset = point.to_double()
+    assert_true(
+      bell.membership(3.0 - offset) - bell.membership(3.0 + offset) < 0.0000001 &&
+      bell.membership(3.0 + offset) - bell.membership(3.0 - offset) < 0.0000001,
+    )
+    assert_true(
+      rising.membership(3.0 + offset) >= rising.membership(2.0 + offset),
+    )
+    point = point + 1
+  }
+}
